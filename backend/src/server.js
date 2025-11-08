@@ -16,9 +16,29 @@ const app = express();
 const PORT = process.env.PORT || 5001;
 
 // Middleware
+// Configure CORS to allow multiple origins
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:5001',
+  'https://coa-pdf-processor.web.app',
+  'https://coa-pdf-processor.firebaseapp.com'
+];
+
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) !== -1 || process.env.CORS_ORIGIN === '*') {
+      callback(null, true);
+    } else {
+      console.log('Blocked by CORS:', origin);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 
 app.use(express.json({ limit: '50mb' }));
@@ -101,7 +121,8 @@ async function startServer() {
       console.log('================================');
       console.log(`✅ Server running on port ${PORT}`);
       console.log(`✅ Environment: ${process.env.NODE_ENV || 'development'}`);
-      console.log(`✅ CORS enabled for: ${process.env.CORS_ORIGIN || 'http://localhost:5173'}`);
+      console.log(`✅ CORS enabled for:`);
+      allowedOrigins.forEach(origin => console.log(`   - ${origin}`));
       console.log(`✅ OpenAI API configured`);
       console.log('\n📚 API Documentation:');
       console.log(`   Health Check: GET http://localhost:${PORT}/api/health`);
