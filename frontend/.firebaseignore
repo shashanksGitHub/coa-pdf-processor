@@ -1,0 +1,40 @@
+# Node modules
+node_modules/
+
+# Build files
+.cache/
+.vscode/
+.idea/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Git
+.git
+.gitignore
+
+# Source files (only deploy built dist folder)
+src/
+public/
+
+# Config files
+vite.config.js
+tailwind.config.js
+postcss.config.js
+package.json
+package-lock.json
+
+# Documentation
+README.md
+SETUP_GUIDE.md
+
+# Firebase
+.firebaserc
+firebase.json
+.firebase/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+
