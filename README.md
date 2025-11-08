@@ -5,7 +5,7 @@ A full-stack application for processing Certificate of Analysis (COA) PDFs using
 ## 🚀 Live Demo
 
 - **Frontend:** https://coa-pdf-processor.web.app
-- **Backend API:** Your deployed backend URL
+- **Backend API:** https://urchin-app-uzvhp.ondigitalocean.app
 
 ## ✨ Features
 
