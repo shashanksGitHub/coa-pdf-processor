@@ -111,8 +111,8 @@ export default function CompanyInfoForm({ onSubmit, onBack }) {
 
     setUploadError('')
     setUploadingLogo(true)
-    setLogo(file)
-
+      setLogo(file)
+      
     try {
       // Create local preview immediately
       const base64 = await fileToBase64(file)
@@ -299,7 +299,7 @@ export default function CompanyInfoForm({ onSubmit, onBack }) {
                 {uploadingLogo ? (
                   <Loader className="w-6 h-6 text-primary-500 animate-spin" />
                 ) : (
-                  <ImageIcon className="w-6 h-6 text-gray-500" />
+                <ImageIcon className="w-6 h-6 text-gray-500" />
                 )}
               </div>
               <p className="text-sm font-medium text-gray-700 mb-1">

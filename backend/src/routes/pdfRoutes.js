@@ -56,28 +56,28 @@ router.post('/extract-and-generate', optionalAuth, upload.single('pdfFile'), asy
       extractedData = editedData;
       console.log('✅ Using edited data from user');
     } else {
-      // Step 1: Try text extraction first (fast & cheap)
-      try {
-        console.log('📄 Attempting text extraction...');
-        const pdfText = await extractTextFromPDF(pdfPath);
-        
-        if (pdfText && pdfText.trim().length > 100) {
-          console.log(`✅ Extracted ${pdfText.length} characters of text`);
-          console.log('🤖 Sending to GPT-4 Turbo...');
-          extractedData = await extractDataWithGPT4Text(pdfText);
-          console.log('✅ Text-based extraction successful! ⚡');
-        } else {
-          throw new Error('Insufficient text - using Vision');
-        }
-      } catch (textError) {
-        // Step 2: Fallback to Vision
-        console.log('🔄 Using GPT-4 Vision fallback...');
-        console.log('📸 Converting PDF to images...');
-        const base64Images = await convertPDFToImages(pdfPath);
-        console.log(`✅ Converted to ${base64Images.length} images`);
-        console.log('🤖 Extracting data with GPT-4 Vision...');
-        extractedData = await extractDataWithGPTVision(base64Images);
-        console.log('✅ Vision extraction complete');
+    // Step 1: Try text extraction first (fast & cheap)
+    try {
+      console.log('📄 Attempting text extraction...');
+      const pdfText = await extractTextFromPDF(pdfPath);
+      
+      if (pdfText && pdfText.trim().length > 100) {
+        console.log(`✅ Extracted ${pdfText.length} characters of text`);
+        console.log('🤖 Sending to GPT-4 Turbo...');
+        extractedData = await extractDataWithGPT4Text(pdfText);
+        console.log('✅ Text-based extraction successful! ⚡');
+      } else {
+        throw new Error('Insufficient text - using Vision');
+      }
+    } catch (textError) {
+      // Step 2: Fallback to Vision
+      console.log('🔄 Using GPT-4 Vision fallback...');
+      console.log('📸 Converting PDF to images...');
+      const base64Images = await convertPDFToImages(pdfPath);
+      console.log(`✅ Converted to ${base64Images.length} images`);
+      console.log('🤖 Extracting data with GPT-4 Vision...');
+      extractedData = await extractDataWithGPTVision(base64Images);
+      console.log('✅ Vision extraction complete');
       }
     }
 

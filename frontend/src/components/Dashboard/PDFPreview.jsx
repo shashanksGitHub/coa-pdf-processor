@@ -129,7 +129,7 @@ export default function PDFPreview({ extractedData: initialData, companyInfo, up
     setGenerating(true)
     setSuccess(false)
     setError('')
-    
+
     try {
       const { extractAndGeneratePDF } = await import('../../services/apiService')
       
@@ -228,14 +228,14 @@ export default function PDFPreview({ extractedData: initialData, companyInfo, up
     <div className={`${isFullscreen ? 'fixed inset-0 z-50 bg-white overflow-auto p-6' : 'card'}`}>
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
-        <button
-          onClick={onBack}
+      <button
+        onClick={onBack}
           className="btn-secondary flex items-center space-x-2"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          <span>Back</span>
-        </button>
-        
+      >
+        <ArrowLeft className="w-4 h-4" />
+        <span>Back</span>
+      </button>
+
         <div className="flex items-center gap-2">
           <button
             onClick={() => setShowOriginalPdf(!showOriginalPdf)}
@@ -309,10 +309,10 @@ export default function PDFPreview({ extractedData: initialData, companyInfo, up
                 <div className="flex justify-between items-center">
                   <span className="text-gray-600">Logo:</span>
                   <img src={companyInfo.logo} alt="Logo" className="h-8 object-contain" />
-                </div>
-              )}
-            </div>
+              </div>
+            )}
           </div>
+        </div>
 
           {/* Editable COA Data */}
           <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
@@ -325,10 +325,10 @@ export default function PDFPreview({ extractedData: initialData, companyInfo, up
                 Extracted COA Data
                 <span className="text-xs bg-primary-100 text-primary-700 px-2 py-0.5 rounded-full">
                   {Object.keys(editableData).length} fields
-                </span>
+                    </span>
               </h3>
               {isDataExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-            </div>
+                  </div>
             
             {isDataExpanded && (
             <div className="p-4 space-y-2">
@@ -384,8 +384,8 @@ export default function PDFPreview({ extractedData: initialData, companyInfo, up
                       </div>
                     </div>
                   )}
-                </div>
-              ))}
+                      </div>
+                    ))}
 
               {/* Add New Field */}
               {showAddField ? (
@@ -542,7 +542,7 @@ export default function PDFPreview({ extractedData: initialData, companyInfo, up
                 Add New Specification
               </button>
             </div>
-            )}
+          )}
           </div>
         </div>
       </div>

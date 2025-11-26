@@ -128,7 +128,7 @@ export async function generateFormattedPDF(extractedData, companyInfo = {}) {
       if (layout.headerStyle === 'banner') {
         // Full-width banner (Classic)
         doc.rect(0, 0, pageWidth, 40).fill(theme.secondaryColor);
-        yPosition = 60;
+      yPosition = 60;
       } else if (layout.headerStyle === 'minimal') {
         // Thin accent line (Modern)
         doc.rect(0, 0, pageWidth, 8).fill(theme.secondaryColor);
@@ -329,7 +329,7 @@ function drawProfessionalTable(doc, extractedData, pageWidth, pageHeight, margin
       doc.fillColor('#FFFFFF');
     } else {
       // Outline only (minimal)
-      doc.rect(margin, yPosition, tableWidth, headerHeight)
+    doc.rect(margin, yPosition, tableWidth, headerHeight)
         .stroke(borderColor);
       doc.fillColor(borderColor);
     }
@@ -401,7 +401,7 @@ function drawProfessionalTable(doc, extractedData, pageWidth, pageHeight, margin
   } else {
     // If no specifications, show ALL extracted data as a table
     const analysisData = [];
-    
+
     // Fields to exclude from the table (already shown above or internal)
     const excludeFields = ['productName', 'supplier', 'fullText', '_metadata', 'additionalInfo'];
     
@@ -414,7 +414,7 @@ function drawProfessionalTable(doc, extractedData, pageWidth, pageHeight, margin
           .replace(/^./, str => str.toUpperCase())
           .trim();
         analysisData.push({ item: formattedKey, standard: '-', result: String(value) });
-      }
+    }
     });
 
     // Always show table even if minimal data
@@ -436,36 +436,36 @@ function drawProfessionalTable(doc, extractedData, pageWidth, pageHeight, margin
       doc.fillColor(borderColor);
     }
 
-    doc.fontSize(11)
-      .font('Helvetica-Bold')
-      .text('Item', margin + 10, yPosition + 15, { width: col1Width - 20, align: 'center' })
-      .text('Standard', margin + col1Width + 10, yPosition + 15, { width: col2Width - 20, align: 'center' })
-      .text('Result', margin + col1Width + col2Width + 10, yPosition + 15, { width: col3Width - 20, align: 'center' });
+      doc.fontSize(11)
+        .font('Helvetica-Bold')
+        .text('Item', margin + 10, yPosition + 15, { width: col1Width - 20, align: 'center' })
+        .text('Standard', margin + col1Width + 10, yPosition + 15, { width: col2Width - 20, align: 'center' })
+        .text('Result', margin + col1Width + col2Width + 10, yPosition + 15, { width: col3Width - 20, align: 'center' });
 
-    doc.restore();
-    yPosition += headerHeight;
+      doc.restore();
+      yPosition += headerHeight;
 
-    // Table rows
-    doc.lineWidth(borderWidth)
+      // Table rows
+      doc.lineWidth(borderWidth)
       .strokeColor(borderColor)
-      .fillColor('#000000')
-      .font('Helvetica');
-
-    analysisData.forEach((data) => {
-      doc.rect(margin, yPosition, col1Width, rowHeight).stroke();
-      doc.rect(margin + col1Width, yPosition, col2Width, rowHeight).stroke();
-      doc.rect(margin + col1Width + col2Width, yPosition, col3Width, rowHeight).stroke();
-
-      const textY = yPosition + (rowHeight / 2) - 5;
-
-      doc.fontSize(9)
         .fillColor('#000000')
-        .text(cleanText(data.item).toUpperCase(), margin + 10, textY, { width: col1Width - 20, align: 'left' })
-        .text(cleanText(data.standard), margin + col1Width + 10, textY, { width: col2Width - 20, align: 'center' })
-        .text(cleanText(data.result), margin + col1Width + col2Width + 10, textY, { width: col3Width - 20, align: 'center' });
+        .font('Helvetica');
 
-      yPosition += rowHeight;
-    });
+      analysisData.forEach((data) => {
+        doc.rect(margin, yPosition, col1Width, rowHeight).stroke();
+        doc.rect(margin + col1Width, yPosition, col2Width, rowHeight).stroke();
+        doc.rect(margin + col1Width + col2Width, yPosition, col3Width, rowHeight).stroke();
+
+        const textY = yPosition + (rowHeight / 2) - 5;
+
+        doc.fontSize(9)
+          .fillColor('#000000')
+          .text(cleanText(data.item).toUpperCase(), margin + 10, textY, { width: col1Width - 20, align: 'left' })
+          .text(cleanText(data.standard), margin + col1Width + 10, textY, { width: col2Width - 20, align: 'center' })
+          .text(cleanText(data.result), margin + col1Width + col2Width + 10, textY, { width: col3Width - 20, align: 'center' });
+
+        yPosition += rowHeight;
+      });
   }
 
   return yPosition;
