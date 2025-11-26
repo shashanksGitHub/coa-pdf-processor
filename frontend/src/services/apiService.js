@@ -22,13 +22,19 @@ async function getAuthToken() {
  * Upload PDF and extract data using GPT-4 Vision
  * @param {File} pdfFile - The PDF file to upload
  * @param {Object} companyInfo - Company information
+ * @param {Object} editedData - Optional edited/modified extracted data
  * @returns {Promise<Object>} Response with extracted data and generated PDF
  */
-export async function extractAndGeneratePDF(pdfFile, companyInfo = {}) {
+export async function extractAndGeneratePDF(pdfFile, companyInfo = {}, editedData = null) {
   try {
     const formData = new FormData()
     formData.append('pdfFile', pdfFile)
     formData.append('companyInfo', JSON.stringify(companyInfo))
+    
+    // If edited data is provided, use it instead of re-extracting
+    if (editedData) {
+      formData.append('editedData', JSON.stringify(editedData))
+    }
 
     const token = await getAuthToken()
     const headers = {}

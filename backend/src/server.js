@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import pdfRoutes from './routes/pdfRoutes.js';
+import paymentRoutes from './routes/paymentRoutes.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs/promises';
@@ -62,6 +63,7 @@ async function initializeDirectories() {
 
 // Routes
 app.use('/api', pdfRoutes);
+app.use('/api/payment', paymentRoutes);
 
 // Root endpoint
 app.get('/', (req, res) => {
@@ -73,6 +75,9 @@ app.get('/', (req, res) => {
       extractAndGenerate: 'POST /api/extract-and-generate',
       extractOnly: 'POST /api/extract-only',
       download: 'GET /api/download/:filename',
+      createPayment: 'POST /api/payment/create-payment-intent',
+      verifyPayment: 'POST /api/payment/verify-payment',
+      paymentConfig: 'GET /api/payment/config',
     },
   });
 });

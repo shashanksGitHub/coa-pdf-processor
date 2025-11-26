@@ -13,7 +13,10 @@ export default function Dashboard() {
   const [extractedData, setExtractedData] = useState(null)
   const [companyInfo, setCompanyInfo] = useState({
     name: '',
-    logo: null
+    logo: null,
+    address: '',
+    theme: null,
+    layout: 'classic'
   })
   const [step, setStep] = useState(1) // 1: Upload, 2: Company Info, 3: Preview
 
@@ -40,7 +43,7 @@ export default function Dashboard() {
   function handleReset() {
     setUploadedPDF(null)
     setExtractedData(null)
-    setCompanyInfo({ name: '', logo: null })
+    setCompanyInfo({ name: '', logo: null, address: '', theme: null, layout: 'classic' })
     setStep(1)
   }
 
