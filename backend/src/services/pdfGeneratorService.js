@@ -7,6 +7,55 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+/**
+ * Fetch image from URL and return as buffer
+ * @param {string} url - The image URL
+ * @returns {Promise<Buffer>} Image buffer
+ */
+async function fetchImageAsBuffer(url) {
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch image: ${response.status}`);
+    }
+    const arrayBuffer = await response.arrayBuffer();
+    return Buffer.from(arrayBuffer);
+  } catch (error) {
+    console.error('Error fetching image from URL:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get logo buffer from base64 string or URL
+ * @param {string} logo - Base64 string or URL
+ * @returns {Promise<Buffer|null>} Logo buffer or null if failed
+ */
+async function getLogoBuffer(logo) {
+  if (!logo) return null;
+  
+  try {
+    // Check if it's a URL (starts with http/https)
+    if (logo.startsWith('http://') || logo.startsWith('https://')) {
+      console.log('📷 Fetching logo from URL...');
+      return await fetchImageAsBuffer(logo);
+    }
+    
+    // Check if it's a base64 data URL
+    if (logo.startsWith('data:image/')) {
+      console.log('📷 Decoding logo from base64...');
+      return Buffer.from(logo.replace(/^data:image\/\w+;base64,/, ''), 'base64');
+    }
+    
+    // Assume it's raw base64
+    console.log('📷 Decoding logo from raw base64...');
+    return Buffer.from(logo, 'base64');
+  } catch (error) {
+    console.error('Error processing logo:', error);
+    return null;
+  }
+}
+
 // Default theme colors
 const DEFAULT_THEME = {
   primaryColor: '#1A376B',  // Navy blue
@@ -140,21 +189,27 @@ export async function generateFormattedPDF(extractedData, companyInfo = {}) {
       }
       doc.restore();
 
-      // Add company logo if provided
-      if (companyInfo.logo) {
+      // Add company logo if provided (supports both base64 and URL)
+      const logoSource = companyInfo.logo || companyInfo.logoUrl;
+      if (logoSource) {
         try {
-          const logoBuffer = Buffer.from(companyInfo.logo.replace(/^data:image\/\w+;base64,/, ''), 'base64');
+          const logoBuffer = await getLogoBuffer(logoSource);
           
-          // Logo position based on layout
-          let logoX;
-          if (layout.logoPosition === 'left') {
-            logoX = margin;
+          if (logoBuffer) {
+            // Logo position based on layout
+            let logoX;
+            if (layout.logoPosition === 'left') {
+              logoX = margin;
+            } else {
+              logoX = (pageWidth - 100) / 2;
+            }
+            
+            doc.image(logoBuffer, logoX, yPosition, { width: 100, height: 70 });
+            yPosition += 80;
           } else {
-            logoX = (pageWidth - 100) / 2;
+            console.warn('⚠️ Logo buffer is null, skipping logo');
+            yPosition += 20;
           }
-          
-          doc.image(logoBuffer, logoX, yPosition, { width: 100, height: 70 });
-          yPosition += 80;
         } catch (error) {
           console.error('Error adding logo:', error);
           yPosition += 20;
