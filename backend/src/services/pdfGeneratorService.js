@@ -175,20 +175,31 @@ export async function generateFormattedPDF(extractedData, companyInfo = {}) {
             align: textAlign,
             width: pageWidth - 2 * margin,
           });
-        yPosition += 18;
+        yPosition += 20;
       }
 
-      // Company Address (if provided)
+      // Company Address (if provided) - calculate actual height for multiline
       if (companyInfo.address) {
         doc.fillColor('#333333')
           .fontSize(9)
-          .font('Helvetica')
-          .text(companyInfo.address, margin, yPosition, {
+          .font('Helvetica');
+        
+        // Calculate the height of the address text
+        const addressHeight = doc.heightOfString(companyInfo.address, {
+          width: pageWidth - 2 * margin,
+        });
+        
+        doc.text(companyInfo.address, margin, yPosition, {
             align: textAlign,
             width: pageWidth - 2 * margin,
           });
-        yPosition += 15;
+        
+        // Add actual text height plus some padding
+        yPosition += addressHeight + 10;
       }
+
+      // Add spacing before title
+      yPosition += 10;
 
       // Title - Certificate of Analysis (explicit color reset)
       doc.fillColor(theme.primaryColor)
@@ -198,7 +209,7 @@ export async function generateFormattedPDF(extractedData, companyInfo = {}) {
           align: textAlign,
           width: pageWidth - 2 * margin,
         });
-      yPosition += 28;
+      yPosition += 30;
 
       // Product Name (explicit color reset)
       doc.fillColor(theme.primaryColor)
