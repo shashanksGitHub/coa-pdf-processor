@@ -1,37 +1,22 @@
-import admin from 'firebase-admin';
-import dotenv from 'dotenv';
+import { admin } from '../config/firebase.js';
 
-dotenv.config();
-
-// Initialize Firebase Admin (optional - only if you want to verify Firebase auth tokens)
-let firebaseInitialized = false;
-
-try {
-  if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY) {
-    admin.initializeApp({
-      credential: admin.credential.cert({
-        projectId: process.env.FIREBASE_PROJECT_ID,
-        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-        privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
-      }),
-    });
-    firebaseInitialized = true;
-    console.log('✅ Firebase Admin initialized for auth verification');
-  } else {
-    console.warn('⚠️  Firebase credentials not found - auth middleware disabled');
-  }
-} catch (error) {
-  console.error('❌ Failed to initialize Firebase Admin:', error.message);
+/**
+ * Check if Firebase is properly initialized
+ */
+function isFirebaseInitialized() {
+  return admin.apps.length > 0;
 }
 
 /**
  * Middleware to verify Firebase authentication token
- * This is optional - can be enabled/disabled based on environment
+ * Required for protected routes
  */
 export async function verifyFirebaseToken(req, res, next) {
   // Skip auth if Firebase is not initialized (for development/testing)
-  if (!firebaseInitialized) {
+  if (!isFirebaseInitialized()) {
     console.log('Auth verification skipped - Firebase not configured');
+    // Set a dummy user for development
+    req.user = { uid: 'dev-user', email: 'dev@test.com' };
     return next();
   }
 
@@ -66,9 +51,10 @@ export async function verifyFirebaseToken(req, res, next) {
 
 /**
  * Optional auth middleware - only verifies if token is present
+ * Does not fail if no token provided
  */
 export async function optionalAuth(req, res, next) {
-  if (!firebaseInitialized) {
+  if (!isFirebaseInitialized()) {
     return next();
   }
 
@@ -91,6 +77,7 @@ export async function optionalAuth(req, res, next) {
   }
 }
 
-export default { verifyFirebaseToken, optionalAuth };
+// Also export as auth for shorter usage
+export const auth = verifyFirebaseToken;
 
-
+export default { verifyFirebaseToken, optionalAuth, auth };

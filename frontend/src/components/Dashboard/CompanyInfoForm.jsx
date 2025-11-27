@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Building2, Upload, Image as ImageIcon, ArrowLeft, Save, History, MapPin, Loader, Cloud, Check, Palette, Layout } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { uploadCompanyLogo, deleteCompanyLogo, fileToBase64 } from '../../services/storageService'
+import { getCompanyInfo, saveCompanyInfo as saveCompanyToFirestore, deleteCompanyInfo } from '../../services/companyService'
 
 // Predefined color themes
 const COLOR_THEMES = [
@@ -33,70 +34,139 @@ export default function CompanyInfoForm({ onSubmit, onBack }) {
   const [showSavedMessage, setShowSavedMessage] = useState(false)
   const [uploadingLogo, setUploadingLogo] = useState(false)
   const [uploadError, setUploadError] = useState('')
+  const [loadingInfo, setLoadingInfo] = useState(true)
+  const [savingInfo, setSavingInfo] = useState(false)
   
   // Theme and layout state
   const [selectedTheme, setSelectedTheme] = useState('navy-green')
   const [selectedLayout, setSelectedLayout] = useState('classic')
 
-  // Storage key based on user ID
-  const storageKey = currentUser ? `companyInfo_${currentUser.uid}` : 'companyInfo_guest'
-
-  // Load saved company info on mount
+  // Load saved company info from Firestore on mount
   useEffect(() => {
-    const savedInfo = localStorage.getItem(storageKey)
-    if (savedInfo) {
+    async function loadCompanyInfo() {
+      if (!currentUser) {
+        setLoadingInfo(false)
+        return
+      }
+
       try {
-        const parsed = JSON.parse(savedInfo)
-        setCompanyName(parsed.name || '')
-        setCompanyAddress(parsed.address || '')
-        // Load logo URL from Firebase Storage
-        if (parsed.logoUrl) {
-          setLogoUrl(parsed.logoUrl)
-          setLogoPreview(parsed.logoUrl)
-          setLogoBase64(parsed.logoBase64 || null)
+        const savedInfo = await getCompanyInfo()
+        if (savedInfo) {
+          setCompanyName(savedInfo.companyName || '')
+          setCompanyAddress(savedInfo.companyAddress || '')
+          // Load logo URL from Firebase Storage
+          if (savedInfo.logoUrl) {
+            setLogoUrl(savedInfo.logoUrl)
+            setLogoPreview(savedInfo.logoUrl)
+          }
+          // Load theme and layout
+          if (savedInfo.theme) setSelectedTheme(savedInfo.theme)
+          if (savedInfo.layout) setSelectedLayout(savedInfo.layout)
+          setHasSavedInfo(true)
         }
-        // Load theme and layout
-        if (parsed.theme) setSelectedTheme(parsed.theme)
-        if (parsed.layout) setSelectedLayout(parsed.layout)
-        setHasSavedInfo(true)
-      } catch (e) {
-        console.error('Error loading saved company info:', e)
+      } catch (error) {
+        console.error('Error loading company info from Firestore:', error)
+        // Fallback to localStorage if API fails
+        try {
+          const storageKey = `companyInfo_${currentUser.uid}`
+          const localInfo = localStorage.getItem(storageKey)
+          if (localInfo) {
+            const parsed = JSON.parse(localInfo)
+            setCompanyName(parsed.name || '')
+            setCompanyAddress(parsed.address || '')
+            if (parsed.logoUrl) {
+              setLogoUrl(parsed.logoUrl)
+              setLogoPreview(parsed.logoUrl)
+              setLogoBase64(parsed.logoBase64 || null)
+            }
+            if (parsed.theme) setSelectedTheme(parsed.theme)
+            if (parsed.layout) setSelectedLayout(parsed.layout)
+            setHasSavedInfo(true)
+          }
+        } catch (localError) {
+          console.error('Error loading from localStorage fallback:', localError)
+        }
+      } finally {
+        setLoadingInfo(false)
       }
     }
-  }, [storageKey])
 
-  // Save company info to localStorage (with Firebase Storage URL)
-  function saveCompanyInfo(logoDownloadUrl, base64Data) {
-    const infoToSave = {
-      name: companyName,
-      address: companyAddress,
-      logoUrl: logoDownloadUrl || logoUrl,
-      logoBase64: base64Data || logoBase64, // Store base64 for PDF generation
-      theme: selectedTheme,
-      layout: selectedLayout,
-      savedAt: new Date().toISOString()
+    loadCompanyInfo()
+  }, [currentUser])
+
+  // Save company info to Firestore
+  async function handleSaveCompanyInfo(logoDownloadUrl) {
+    if (!currentUser) {
+      console.warn('Cannot save company info - user not logged in')
+      return
     }
-    localStorage.setItem(storageKey, JSON.stringify(infoToSave))
-    setHasSavedInfo(true)
-    setShowSavedMessage(true)
-    setTimeout(() => setShowSavedMessage(false), 2000)
+
+    setSavingInfo(true)
+    try {
+      await saveCompanyToFirestore({
+        companyName: companyName.trim(),
+        companyAddress: companyAddress.trim(),
+        logoUrl: logoDownloadUrl || logoUrl,
+        theme: selectedTheme,
+        layout: selectedLayout,
+      })
+      setHasSavedInfo(true)
+      setShowSavedMessage(true)
+      setTimeout(() => setShowSavedMessage(false), 2000)
+      console.log('Company info saved to Firestore')
+    } catch (error) {
+      console.error('Error saving company info to Firestore:', error)
+      // Fallback to localStorage
+      const storageKey = `companyInfo_${currentUser.uid}`
+      const infoToSave = {
+        name: companyName,
+        address: companyAddress,
+        logoUrl: logoDownloadUrl || logoUrl,
+        logoBase64: logoBase64,
+        theme: selectedTheme,
+        layout: selectedLayout,
+        savedAt: new Date().toISOString()
+      }
+      localStorage.setItem(storageKey, JSON.stringify(infoToSave))
+      setHasSavedInfo(true)
+      setShowSavedMessage(true)
+      setTimeout(() => setShowSavedMessage(false), 2000)
+    } finally {
+      setSavingInfo(false)
+    }
   }
 
-  // Clear saved info
+  // Clear saved info from Firestore
   async function clearSavedInfo() {
-    // Delete logo from Firebase Storage
-    if (logoUrl) {
-      await deleteCompanyLogo(logoUrl)
+    setSavingInfo(true)
+    try {
+      // Delete logo from Firebase Storage
+      if (logoUrl) {
+        await deleteCompanyLogo(logoUrl)
+      }
+      
+      // Delete from Firestore
+      if (currentUser) {
+        await deleteCompanyInfo()
+        // Also clear localStorage fallback
+        const storageKey = `companyInfo_${currentUser.uid}`
+        localStorage.removeItem(storageKey)
+      }
+      
+      setCompanyName('')
+      setCompanyAddress('')
+      setLogoPreview(null)
+      setLogoUrl(null)
+      setLogoBase64(null)
+      setLogo(null)
+      setSelectedTheme('navy-green')
+      setSelectedLayout('classic')
+      setHasSavedInfo(false)
+    } catch (error) {
+      console.error('Error clearing company info:', error)
+    } finally {
+      setSavingInfo(false)
     }
-    
-    localStorage.removeItem(storageKey)
-    setCompanyName('')
-    setCompanyAddress('')
-    setLogoPreview(null)
-    setLogoUrl(null)
-    setLogoBase64(null)
-    setLogo(null)
-    setHasSavedInfo(false)
   }
 
   async function handleLogoChange(e) {
@@ -150,7 +220,7 @@ export default function CompanyInfoForm({ onSubmit, onBack }) {
     
     // Save info if checkbox is checked
     if (saveInfo) {
-      saveCompanyInfo(logoUrl, logoBase64)
+      handleSaveCompanyInfo(logoUrl)
     }
     
     // Get the selected theme colors
@@ -168,6 +238,18 @@ export default function CompanyInfoForm({ onSubmit, onBack }) {
       },
       layout: selectedLayout,
     })
+  }
+
+  // Show loading state while fetching company info
+  if (loadingInfo) {
+    return (
+      <div className="card">
+        <div className="flex flex-col items-center justify-center py-12">
+          <Loader className="w-8 h-8 text-primary-600 animate-spin mb-4" />
+          <p className="text-gray-600">Loading company info...</p>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -197,13 +279,15 @@ export default function CompanyInfoForm({ onSubmit, onBack }) {
               <span className="text-sm font-medium text-green-800">
                 Saved company info loaded automatically
               </span>
+              <Cloud className="w-4 h-4 text-green-600" />
             </div>
             <button
               type="button"
               onClick={clearSavedInfo}
-              className="text-sm text-green-700 hover:text-green-900 underline"
+              disabled={savingInfo}
+              className="text-sm text-green-700 hover:text-green-900 underline disabled:opacity-50"
             >
-              Clear
+              {savingInfo ? 'Clearing...' : 'Clear'}
             </button>
           </div>
         </div>
@@ -213,7 +297,8 @@ export default function CompanyInfoForm({ onSubmit, onBack }) {
       {showSavedMessage && (
         <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg flex items-center gap-2">
           <Save className="w-5 h-5 text-blue-600" />
-          <span className="text-sm font-medium text-blue-800">Company info saved!</span>
+          <span className="text-sm font-medium text-blue-800">Company info saved to cloud!</span>
+          <Cloud className="w-4 h-4 text-blue-600" />
         </div>
       )}
 
@@ -413,9 +498,9 @@ export default function CompanyInfoForm({ onSubmit, onBack }) {
             className="w-4 h-4 text-primary-600 rounded border-gray-300 focus:ring-primary-500"
           />
           <label htmlFor="saveInfo" className="text-sm text-gray-700 cursor-pointer">
-            <span className="font-medium">Save company info for next time</span>
+            <span className="font-medium">Save company info to cloud</span>
             <span className="block text-xs text-gray-500 mt-0.5">
-              Auto-fill this form on your next visit
+              Access from any device with your account
             </span>
           </label>
         </div>
@@ -430,13 +515,20 @@ export default function CompanyInfoForm({ onSubmit, onBack }) {
           </button>
           <button
             type="submit"
-            className="btn-primary flex-1"
+            disabled={savingInfo}
+            className="btn-primary flex-1 flex items-center justify-center gap-2"
           >
-            Continue
+            {savingInfo ? (
+              <>
+                <Loader className="w-4 h-4 animate-spin" />
+                <span>Saving...</span>
+              </>
+            ) : (
+              <span>Continue</span>
+            )}
           </button>
         </div>
       </form>
     </div>
   )
 }
-

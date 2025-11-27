@@ -3,6 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import pdfRoutes from './routes/pdfRoutes.js';
 import paymentRoutes from './routes/paymentRoutes.js';
+import companyRoutes from './routes/companyRoutes.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs/promises';
@@ -64,6 +65,7 @@ async function initializeDirectories() {
 // Routes
 app.use('/api', pdfRoutes);
 app.use('/api/payment', paymentRoutes);
+app.use('/api/company', companyRoutes);
 
 // Root endpoint
 app.get('/', (req, res) => {
@@ -78,6 +80,9 @@ app.get('/', (req, res) => {
       createPayment: 'POST /api/payment/create-payment-intent',
       verifyPayment: 'POST /api/payment/verify-payment',
       paymentConfig: 'GET /api/payment/config',
+      getCompanyInfo: 'GET /api/company/info',
+      saveCompanyInfo: 'POST /api/company/info',
+      deleteCompanyInfo: 'DELETE /api/company/info',
     },
   });
 });
