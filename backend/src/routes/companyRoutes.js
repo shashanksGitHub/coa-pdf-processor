@@ -1,5 +1,5 @@
 import express from 'express';
-import { firestore } from '../config/firebase.js';
+import { firestore, isFirestoreAvailable } from '../config/firebase.js';
 import { verifyFirebaseToken } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
@@ -13,10 +13,12 @@ const COLLECTION_NAME = 'companyInfo';
  */
 router.get('/info', verifyFirebaseToken, async (req, res) => {
   try {
-    if (!firestore) {
-      return res.status(503).json({
-        success: false,
-        error: 'Firestore not available',
+    if (!isFirestoreAvailable()) {
+      console.warn('⚠️ Firestore not available - returning null');
+      return res.json({
+        success: true,
+        data: null,
+        message: 'Firestore not configured - using local storage fallback',
       });
     }
 
@@ -51,10 +53,12 @@ router.get('/info', verifyFirebaseToken, async (req, res) => {
  */
 router.post('/info', verifyFirebaseToken, async (req, res) => {
   try {
-    if (!firestore) {
-      return res.status(503).json({
-        success: false,
-        error: 'Firestore not available',
+    if (!isFirestoreAvailable()) {
+      console.warn('⚠️ Firestore not available - skipping save');
+      return res.json({
+        success: true,
+        message: 'Company info not saved - Firestore not configured',
+        data: req.body,
       });
     }
 
@@ -102,10 +106,10 @@ router.post('/info', verifyFirebaseToken, async (req, res) => {
  */
 router.delete('/info', verifyFirebaseToken, async (req, res) => {
   try {
-    if (!firestore) {
-      return res.status(503).json({
-        success: false,
-        error: 'Firestore not available',
+    if (!isFirestoreAvailable()) {
+      return res.json({
+        success: true,
+        message: 'Delete skipped - Firestore not configured',
       });
     }
 
@@ -127,4 +131,3 @@ router.delete('/info', verifyFirebaseToken, async (req, res) => {
 });
 
 export default router;
-
