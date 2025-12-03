@@ -56,6 +56,96 @@ async function getLogoBuffer(logo) {
   }
 }
 
+/**
+ * Get image dimensions from buffer (supports PNG, JPEG, GIF)
+ * @param {Buffer} buffer - Image buffer
+ * @returns {{ width: number, height: number } | null} Image dimensions or null
+ */
+function getImageDimensions(buffer) {
+  try {
+    // PNG signature: 89 50 4E 47 0D 0A 1A 0A
+    if (buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4E && buffer[3] === 0x47) {
+      // PNG: width at offset 16-19, height at offset 20-23 (big endian)
+      const width = buffer.readUInt32BE(16);
+      const height = buffer.readUInt32BE(20);
+      console.log(`📐 PNG dimensions: ${width}x${height}`);
+      return { width, height };
+    }
+    
+    // JPEG signature: FF D8 FF
+    if (buffer[0] === 0xFF && buffer[1] === 0xD8 && buffer[2] === 0xFF) {
+      let offset = 2;
+      while (offset < buffer.length) {
+        if (buffer[offset] !== 0xFF) {
+          offset++;
+          continue;
+        }
+        const marker = buffer[offset + 1];
+        // SOF0 (0xC0) through SOF2 (0xC2) contain dimensions
+        if (marker >= 0xC0 && marker <= 0xC2) {
+          const height = buffer.readUInt16BE(offset + 5);
+          const width = buffer.readUInt16BE(offset + 7);
+          console.log(`📐 JPEG dimensions: ${width}x${height}`);
+          return { width, height };
+        }
+        // Skip marker segment
+        const segmentLength = buffer.readUInt16BE(offset + 2);
+        offset += 2 + segmentLength;
+      }
+    }
+    
+    // GIF signature: 47 49 46 38 (GIF8)
+    if (buffer[0] === 0x47 && buffer[1] === 0x49 && buffer[2] === 0x46) {
+      const width = buffer.readUInt16LE(6);
+      const height = buffer.readUInt16LE(8);
+      console.log(`📐 GIF dimensions: ${width}x${height}`);
+      return { width, height };
+    }
+    
+    console.log('⚠️ Unknown image format, using defaults');
+    return null;
+  } catch (error) {
+    console.error('Error reading image dimensions:', error);
+    return null;
+  }
+}
+
+/**
+ * Calculate logo dimensions preserving aspect ratio
+ * @param {Buffer} logoBuffer - The logo image buffer
+ * @param {number} maxWidth - Maximum width allowed
+ * @param {number} maxHeight - Maximum height allowed
+ * @returns {{ width: number, height: number }} Calculated dimensions
+ */
+function calculateLogoDimensions(logoBuffer, maxWidth = 150, maxHeight = 80) {
+  const dimensions = getImageDimensions(logoBuffer);
+  
+  if (!dimensions) {
+    // Fallback to default dimensions if we can't read the image
+    return { width: 100, height: 70 };
+  }
+  
+  const { width: origWidth, height: origHeight } = dimensions;
+  const aspectRatio = origWidth / origHeight;
+  
+  let finalWidth = origWidth;
+  let finalHeight = origHeight;
+  
+  // Scale down if exceeds max dimensions while preserving aspect ratio
+  if (finalWidth > maxWidth) {
+    finalWidth = maxWidth;
+    finalHeight = finalWidth / aspectRatio;
+  }
+  
+  if (finalHeight > maxHeight) {
+    finalHeight = maxHeight;
+    finalWidth = finalHeight * aspectRatio;
+  }
+  
+  console.log(`📐 Logo scaled: ${origWidth}x${origHeight} → ${Math.round(finalWidth)}x${Math.round(finalHeight)}`);
+  return { width: Math.round(finalWidth), height: Math.round(finalHeight) };
+}
+
 // Default theme colors
 const DEFAULT_THEME = {
   primaryColor: '#1A376B',  // Navy blue
@@ -136,12 +226,76 @@ function generateFileName(extractedData, companyInfo) {
 }
 
 /**
+ * Draw watermark on a PDF page (for non-Pro users)
+ * @param {PDFDocument} doc - The PDFKit document
+ * @param {number} pageWidth - Page width
+ * @param {number} pageHeight - Page height
+ */
+function drawWatermark(doc, pageWidth, pageHeight) {
+  doc.save();
+  
+  // Semi-transparent gray watermark
+  doc.fillColor('#CCCCCC')
+    .opacity(0.15);
+  
+  // Draw diagonal watermark text multiple times
+  const watermarkText = 'COA Processor - Free Version';
+  doc.fontSize(24)
+    .font('Helvetica-Bold');
+  
+  // Rotate and position watermarks diagonally across the page
+  const positions = [
+    { x: pageWidth * 0.3, y: pageHeight * 0.3 },
+    { x: pageWidth * 0.5, y: pageHeight * 0.5 },
+    { x: pageWidth * 0.7, y: pageHeight * 0.7 },
+  ];
+  
+  positions.forEach(({ x, y }) => {
+    doc.save();
+    doc.translate(x, y);
+    doc.rotate(-45);
+    doc.text(watermarkText, -100, 0, { width: 300, align: 'center' });
+    doc.restore();
+  });
+  
+  doc.restore();
+  // Reset opacity for subsequent content
+  doc.opacity(1);
+}
+
+/**
+ * Draw custom background on PDF (for Pro users)
+ * @param {PDFDocument} doc - The PDFKit document
+ * @param {Buffer} backgroundBuffer - The background image buffer
+ * @param {number} pageWidth - Page width
+ * @param {number} pageHeight - Page height
+ */
+function drawCustomBackground(doc, backgroundBuffer, pageWidth, pageHeight) {
+  try {
+    doc.save();
+    // Draw background image to cover the full page with low opacity
+    doc.opacity(0.1);
+    doc.image(backgroundBuffer, 0, 0, { 
+      width: pageWidth, 
+      height: pageHeight,
+      cover: [pageWidth, pageHeight]
+    });
+    doc.restore();
+    doc.opacity(1);
+    console.log('✅ Custom background applied');
+  } catch (error) {
+    console.error('Error drawing custom background:', error);
+  }
+}
+
+/**
  * Generate a formatted COA PDF with company branding
  * @param {Object} extractedData - Data extracted from the original PDF
  * @param {Object} companyInfo - Company name, logo, theme, and layout
+ * @param {Object} userInfo - User info including isPro status
  * @returns {Promise<string>} Path to the generated PDF file
  */
-export async function generateFormattedPDF(extractedData, companyInfo = {}) {
+export async function generateFormattedPDF(extractedData, companyInfo = {}, userInfo = {}) {
   return new Promise(async (resolve, reject) => {
     try {
       // Create output directory if it doesn't exist
@@ -161,7 +315,10 @@ export async function generateFormattedPDF(extractedData, companyInfo = {}) {
       const layoutId = companyInfo.layout || 'classic';
       const layout = LAYOUTS[layoutId] || LAYOUTS.classic;
       
-      console.log(`📄 Generating PDF with theme: ${theme.primaryColor}/${theme.secondaryColor}, layout: ${layoutId}`);
+      // Check Pro status
+      const isPro = userInfo.isPro || false;
+      
+      console.log(`📄 Generating PDF with theme: ${theme.primaryColor}/${theme.secondaryColor}, layout: ${layoutId}, isPro: ${isPro}`);
 
       // Create PDF document
       const doc = new PDFDocument({ size: 'A4', margin: 50 });
@@ -171,6 +328,21 @@ export async function generateFormattedPDF(extractedData, companyInfo = {}) {
       const pageHeight = doc.page.height;
       const margin = 50;
       let yPosition = margin;
+
+      // Apply custom background for Pro users, or watermark for free users
+      if (isPro && companyInfo.customBackground) {
+        try {
+          const backgroundBuffer = await getLogoBuffer(companyInfo.customBackground);
+          if (backgroundBuffer) {
+            drawCustomBackground(doc, backgroundBuffer, pageWidth, pageHeight);
+          }
+        } catch (error) {
+          console.error('Error applying custom background:', error);
+        }
+      } else if (!isPro) {
+        // Add watermark for free users
+        drawWatermark(doc, pageWidth, pageHeight);
+      }
 
       // Header style based on layout (isolated graphics state)
       doc.save();
@@ -196,16 +368,22 @@ export async function generateFormattedPDF(extractedData, companyInfo = {}) {
           const logoBuffer = await getLogoBuffer(logoSource);
           
           if (logoBuffer) {
+            // Calculate dimensions preserving original aspect ratio
+            const logoDimensions = calculateLogoDimensions(logoBuffer, 150, 80);
+            
             // Logo position based on layout
             let logoX;
             if (layout.logoPosition === 'left') {
               logoX = margin;
             } else {
-              logoX = (pageWidth - 100) / 2;
+              logoX = (pageWidth - logoDimensions.width) / 2;
             }
             
-            doc.image(logoBuffer, logoX, yPosition, { width: 100, height: 70 });
-            yPosition += 80;
+            doc.image(logoBuffer, logoX, yPosition, { 
+              width: logoDimensions.width, 
+              height: logoDimensions.height 
+            });
+            yPosition += logoDimensions.height + 10;
           } else {
             console.warn('⚠️ Logo buffer is null, skipping logo');
             yPosition += 20;

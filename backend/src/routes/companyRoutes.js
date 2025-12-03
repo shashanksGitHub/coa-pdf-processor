@@ -63,7 +63,7 @@ router.post('/info', verifyFirebaseToken, async (req, res) => {
     }
 
     const userId = req.user.uid;
-    const { companyName, companyAddress, logoUrl, theme, layout } = req.body;
+    const { companyName, companyAddress, logoUrl, theme, layout, customBackgroundUrl } = req.body;
 
     // Validate required fields
     if (!companyName) {
@@ -73,12 +73,25 @@ router.post('/info', verifyFirebaseToken, async (req, res) => {
       });
     }
 
+    // Check if user is Pro before allowing custom background
+    let backgroundUrl = null;
+    if (customBackgroundUrl) {
+      const userDoc = await firestore.collection('users').doc(userId).get();
+      const userData = userDoc.exists ? userDoc.data() : {};
+      if (userData.isPro) {
+        backgroundUrl = customBackgroundUrl;
+      } else {
+        console.log('⚠️ Non-Pro user attempted to set custom background - ignoring');
+      }
+    }
+
     const companyData = {
       companyName: companyName.trim(),
       companyAddress: companyAddress?.trim() || '',
       logoUrl: logoUrl || null,
       theme: theme || 'classic',
       layout: layout || 'classic',
+      customBackgroundUrl: backgroundUrl,
       updatedAt: new Date().toISOString(),
       userId,
     };

@@ -4,10 +4,37 @@ import { optionalAuth } from '../middleware/authMiddleware.js';
 import { convertPDFToImages, extractTextFromPDF } from '../services/pdfToImageService.js';
 import { extractDataWithGPTVision, extractDataWithGPT4Text } from '../services/openaiService.js';
 import { generateFormattedPDF } from '../services/pdfGeneratorService.js';
+import { firestore, isFirestoreAvailable } from '../config/firebase.js';
 import fs from 'fs/promises';
 import path from 'path';
 
 const router = express.Router();
+
+/**
+ * Get user info including Pro status
+ * @param {string} userId - The user's ID
+ * @returns {Promise<Object>} User info with isPro status
+ */
+async function getUserInfo(userId) {
+  if (!userId || !isFirestoreAvailable()) {
+    return { isPro: false, accountType: 'free' };
+  }
+  
+  try {
+    const userDoc = await firestore.collection('users').doc(userId).get();
+    if (userDoc.exists) {
+      const data = userDoc.data();
+      return {
+        isPro: data.isPro ?? false,
+        accountType: data.accountType ?? 'free',
+      };
+    }
+  } catch (error) {
+    console.error('Error fetching user info:', error);
+  }
+  
+  return { isPro: false, accountType: 'free' };
+}
 
 /**
  * POST /api/extract-and-generate
@@ -81,9 +108,14 @@ router.post('/extract-and-generate', optionalAuth, upload.single('pdfFile'), asy
       }
     }
 
+    // Get user info for Pro status check
+    const userId = req.user?.uid;
+    const userInfo = await getUserInfo(userId);
+    console.log(`👤 User status: ${userInfo.isPro ? 'Pro' : 'Free'}`);
+
     // Step 3: Generate formatted PDF
     console.log('📄 Generating formatted PDF...');
-    generatedPdfPath = await generateFormattedPDF(extractedData, companyInfo);
+    generatedPdfPath = await generateFormattedPDF(extractedData, companyInfo, userInfo);
     console.log('✅ Formatted PDF generated');
 
     // Read the generated PDF as buffer for sending

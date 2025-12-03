@@ -35,6 +35,8 @@ router.post('/create', verifyFirebaseToken, async (req, res) => {
       uid: userId,
       email: email || req.user?.email || '',
       displayName: displayName || '',
+      isPro: false, // New users start as free tier
+      accountType: 'free', // 'free' or 'pro'
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -44,10 +46,13 @@ router.post('/create', verifyFirebaseToken, async (req, res) => {
     const existingDoc = await docRef.get();
     
     if (existingDoc.exists) {
-      // Update existing user (don't overwrite createdAt)
+      // Update existing user (don't overwrite createdAt, isPro, accountType)
+      const existingData = existingDoc.data();
       await docRef.update({
         ...userData,
-        createdAt: existingDoc.data().createdAt, // Keep original createdAt
+        createdAt: existingData.createdAt, // Keep original createdAt
+        isPro: existingData.isPro ?? false, // Keep existing pro status
+        accountType: existingData.accountType ?? 'free', // Keep existing account type
       });
       console.log(`✅ User updated in Firestore: ${userId}`);
     } else {
@@ -148,5 +153,108 @@ router.put('/me', verifyFirebaseToken, async (req, res) => {
   }
 });
 
+/**
+ * POST /api/users/upgrade-to-pro
+ * Upgrade user to Pro account (should be called after successful payment)
+ */
+router.post('/upgrade-to-pro', verifyFirebaseToken, async (req, res) => {
+  try {
+    if (!isFirestoreAvailable()) {
+      return res.status(503).json({
+        success: false,
+        error: 'Firestore not available',
+      });
+    }
+
+    const userId = req.user.uid;
+    const { paymentId } = req.body; // Optional: for tracking payment
+
+    const docRef = firestore.collection(USERS_COLLECTION).doc(userId);
+    const existingDoc = await docRef.get();
+
+    if (!existingDoc.exists) {
+      return res.status(404).json({
+        success: false,
+        error: 'User not found',
+      });
+    }
+
+    await docRef.update({
+      isPro: true,
+      accountType: 'pro',
+      upgradedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      ...(paymentId && { lastPaymentId: paymentId }),
+    });
+
+    console.log(`✅ User upgraded to Pro: ${userId}`);
+
+    res.json({
+      success: true,
+      message: 'Account upgraded to Pro successfully',
+      data: {
+        isPro: true,
+        accountType: 'pro',
+      },
+    });
+  } catch (error) {
+    console.error('Error upgrading user:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
+
+/**
+ * GET /api/users/account-status
+ * Get current user's account status (free/pro)
+ */
+router.get('/account-status', verifyFirebaseToken, async (req, res) => {
+  try {
+    if (!isFirestoreAvailable()) {
+      return res.json({
+        success: true,
+        data: {
+          isPro: false,
+          accountType: 'free',
+        },
+        message: 'Firestore not configured - defaulting to free',
+      });
+    }
+
+    const userId = req.user.uid;
+    const docRef = firestore.collection(USERS_COLLECTION).doc(userId);
+    const doc = await docRef.get();
+
+    if (!doc.exists) {
+      return res.json({
+        success: true,
+        data: {
+          isPro: false,
+          accountType: 'free',
+        },
+      });
+    }
+
+    const userData = doc.data();
+    res.json({
+      success: true,
+      data: {
+        isPro: userData.isPro ?? false,
+        accountType: userData.accountType ?? 'free',
+        upgradedAt: userData.upgradedAt || null,
+      },
+    });
+  } catch (error) {
+    console.error('Error getting account status:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
+
 export default router;
+
 
