@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
-import { LogOut, FileText, Crown } from 'lucide-react'
+import { LogOut, FileText, Crown, CheckCircle, X } from 'lucide-react'
 import PDFUploader from './PDFUploader'
 import CompanyInfoForm from './CompanyInfoForm'
 import PDFPreview from './PDFPreview'
@@ -23,6 +23,13 @@ export default function Dashboard() {
   const [step, setStep] = useState(1) // 1: Upload, 2: Company Info, 3: Preview
   const [isSubscriber, setIsSubscriber] = useState(false)
   const [downloadsRemaining, setDownloadsRemaining] = useState(0)
+  const [toast, setToast] = useState(null) // { type: 'success' | 'error', message: string }
+
+  // Show toast notification
+  function showToast(type, message) {
+    setToast({ type, message })
+    setTimeout(() => setToast(null), 5000)
+  }
 
   // Load account status
   useEffect(() => {
@@ -32,21 +39,37 @@ export default function Dashboard() {
           const status = await getAccountStatus()
           setIsSubscriber(status.subscriptionStatus === 'active')
           setDownloadsRemaining(status.downloadsRemaining || 0)
+          return status
         } catch (error) {
           console.error('Error loading account status:', error)
         }
       }
+      return null
     }
     loadAccountStatus()
 
     // Check for subscription success/cancel from URL
     const urlParams = new URLSearchParams(window.location.search)
     if (urlParams.get('subscription') === 'success') {
-      // Refresh status after successful subscription
-      setTimeout(() => {
-        loadAccountStatus()
-      }, 1000)
+      // Show loading toast
+      showToast('success', '🎉 Subscription successful! Activating your Pro account...')
+      
+      // Refresh status after successful subscription (with retry)
+      const checkSubscription = async (attempts = 0) => {
+        const status = await loadAccountStatus()
+        if (status?.subscriptionStatus === 'active') {
+          showToast('success', '✅ Welcome to Pro! You now have 60 downloads per month.')
+        } else if (attempts < 3) {
+          // Retry a few times as webhook might take a moment
+          setTimeout(() => checkSubscription(attempts + 1), 2000)
+        }
+      }
+      setTimeout(() => checkSubscription(), 1500)
+      
       // Clear URL params
+      window.history.replaceState({}, '', window.location.pathname)
+    } else if (urlParams.get('subscription') === 'canceled') {
+      showToast('error', 'Subscription was canceled.')
       window.history.replaceState({}, '', window.location.pathname)
     }
   }, [currentUser])
@@ -80,6 +103,26 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Toast Notification */}
+      {toast && (
+        <div className={`fixed top-4 right-4 z-50 max-w-md animate-slide-in ${
+          toast.type === 'success' 
+            ? 'bg-green-50 border-green-200 text-green-800' 
+            : 'bg-red-50 border-red-200 text-red-800'
+        } border rounded-xl shadow-lg p-4 flex items-start gap-3`}>
+          <CheckCircle className={`w-5 h-5 flex-shrink-0 ${
+            toast.type === 'success' ? 'text-green-500' : 'text-red-500'
+          }`} />
+          <p className="text-sm font-medium flex-1">{toast.message}</p>
+          <button 
+            onClick={() => setToast(null)}
+            className="text-gray-400 hover:text-gray-600"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* Header */}
       <header className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">

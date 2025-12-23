@@ -249,20 +249,36 @@ async function handleSubscriptionUpdate(subscription) {
   }
 
   const status = subscription.status;
-  const currentPeriodStart = new Date(subscription.current_period_start * 1000).toISOString();
-  const currentPeriodEnd = new Date(subscription.current_period_end * 1000).toISOString();
+  
+  // Safely convert timestamps
+  let currentPeriodStart = null;
+  let currentPeriodEnd = null;
+  
+  if (subscription.current_period_start) {
+    currentPeriodStart = new Date(subscription.current_period_start * 1000).toISOString();
+  }
+  if (subscription.current_period_end) {
+    currentPeriodEnd = new Date(subscription.current_period_end * 1000).toISOString();
+  }
 
-  await firestore.collection(USERS_COLLECTION).doc(firebaseUid).update({
+  const updateData = {
     accountType: status === 'active' ? 'subscriber' : 'free',
     subscriptionStatus: status,
     stripeSubscriptionId: subscription.id,
-    currentPeriodStart,
-    currentPeriodEnd,
-    // Reset downloads on new period
-    downloadsRemaining: DOWNLOADS_PER_MONTH,
-    downloadsUsedThisMonth: 0,
     updatedAt: new Date().toISOString(),
-  });
+  };
+
+  // Only add period dates if they exist
+  if (currentPeriodStart) updateData.currentPeriodStart = currentPeriodStart;
+  if (currentPeriodEnd) updateData.currentPeriodEnd = currentPeriodEnd;
+
+  // Reset downloads for active subscriptions
+  if (status === 'active') {
+    updateData.downloadsRemaining = DOWNLOADS_PER_MONTH;
+    updateData.downloadsUsedThisMonth = 0;
+  }
+
+  await firestore.collection(USERS_COLLECTION).doc(firebaseUid).update(updateData);
 
   console.log(`✅ Subscription updated for user: ${firebaseUid}, status: ${status}`);
 }
