@@ -161,7 +161,7 @@ router.post('/create-portal-session', verifyFirebaseToken, async (req, res) => {
  * POST /api/subscription/webhook
  * Stripe webhook to handle subscription events
  */
-router.post('/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
+router.post('/webhook', async (req, res) => {
   const sig = req.headers['stripe-signature'];
   const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
