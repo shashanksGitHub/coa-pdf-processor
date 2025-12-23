@@ -258,7 +258,45 @@ async function handleCheckoutComplete(session) {
 
   console.log(`✅ Checkout complete for user: ${firebaseUid}`);
   
-  // Subscription details will be updated via subscription.created webhook
+  // For subscription checkouts, activate immediately if payment succeeded
+  if (session.mode === 'subscription' && session.payment_status === 'paid') {
+    try {
+      // Get the subscription from the session
+      const subscriptionId = session.subscription;
+      if (subscriptionId) {
+        const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+        
+        // Safely convert timestamps
+        let currentPeriodStart = null;
+        let currentPeriodEnd = null;
+        
+        if (subscription.current_period_start) {
+          currentPeriodStart = new Date(subscription.current_period_start * 1000).toISOString();
+        }
+        if (subscription.current_period_end) {
+          currentPeriodEnd = new Date(subscription.current_period_end * 1000).toISOString();
+        }
+
+        const updateData = {
+          accountType: 'subscriber',
+          subscriptionStatus: 'active',
+          stripeSubscriptionId: subscription.id,
+          downloadsRemaining: DOWNLOADS_PER_MONTH,
+          downloadsUsedThisMonth: 0,
+          updatedAt: new Date().toISOString(),
+        };
+
+        if (currentPeriodStart) updateData.currentPeriodStart = currentPeriodStart;
+        if (currentPeriodEnd) updateData.currentPeriodEnd = currentPeriodEnd;
+
+        await firestore.collection(USERS_COLLECTION).doc(firebaseUid).update(updateData);
+        
+        console.log(`✅ Subscription ACTIVATED for user: ${firebaseUid} (60 downloads granted)`);
+      }
+    } catch (error) {
+      console.error('Error activating subscription from checkout:', error);
+    }
+  }
 }
 
 /**
