@@ -16,27 +16,32 @@ import {
   ExternalLink,
   Sparkles
 } from 'lucide-react'
-import { getAccountStatus, createCustomerPortalSession } from '../../services/userService'
+import { getAccountStatus, createCustomerPortalSession, getPaymentHistory } from '../../services/userService'
 
 export default function Profile() {
   const { currentUser } = useAuth()
   const navigate = useNavigate()
   const [accountStatus, setAccountStatus] = useState(null)
+  const [paymentHistory, setPaymentHistory] = useState([])
   const [loading, setLoading] = useState(true)
   const [portalLoading, setPortalLoading] = useState(false)
   const [error, setError] = useState('')
 
   useEffect(() => {
-    loadAccountStatus()
+    loadData()
   }, [])
 
-  async function loadAccountStatus() {
+  async function loadData() {
     setLoading(true)
     try {
-      const status = await getAccountStatus()
+      const [status, payments] = await Promise.all([
+        getAccountStatus(),
+        getPaymentHistory()
+      ])
       setAccountStatus(status)
+      setPaymentHistory(payments)
     } catch (err) {
-      console.error('Error loading account status:', err)
+      console.error('Error loading account data:', err)
       setError('Failed to load account information')
     } finally {
       setLoading(false)
@@ -60,6 +65,8 @@ export default function Profile() {
   const isSubscriber = accountStatus?.subscriptionStatus === 'active'
   const downloadsRemaining = accountStatus?.downloadsRemaining ?? 0
   const downloadsUsed = accountStatus?.downloadsUsedThisMonth ?? 0
+  const totalPurchases = accountStatus?.totalPurchases ?? 0
+  const totalSpent = accountStatus?.totalSpent ?? 0
 
   // Format date helper
   function formatDate(dateString) {
@@ -281,49 +288,107 @@ export default function Profile() {
               </div>
             </div>
 
-            {/* Usage History Card */}
+            {/* Purchase History Card */}
             <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
               <div className="p-6 border-b border-gray-100">
-                <div className="flex items-center gap-3">
-                  <div className="p-3 bg-green-100 rounded-xl">
-                    <CreditCard className="w-6 h-6 text-green-600" />
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="p-3 bg-green-100 rounded-xl">
+                      <CreditCard className="w-6 h-6 text-green-600" />
+                    </div>
+                    <div>
+                      <h2 className="text-lg font-bold text-gray-900">Purchase History</h2>
+                      <p className="text-sm text-gray-500">Your one-time download purchases</p>
+                    </div>
                   </div>
-                  <div>
-                    <h2 className="text-lg font-bold text-gray-900">Billing & Payments</h2>
-                    <p className="text-sm text-gray-500">Manage your payment methods and view history</p>
-                  </div>
+                  {totalPurchases > 0 && (
+                    <div className="text-right">
+                      <p className="text-sm text-gray-500">Total Spent</p>
+                      <p className="text-lg font-bold text-green-600">${(totalSpent / 100).toFixed(2)}</p>
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="p-6">
-                {isSubscriber ? (
-                  <div className="text-center py-4">
-                    <p className="text-gray-500 mb-4">
-                      View and download invoices, update payment method
-                    </p>
-                    <button
-                      onClick={handleManageSubscription}
-                      disabled={portalLoading}
-                      className="px-6 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-medium transition-colors disabled:opacity-50 inline-flex items-center gap-2"
-                    >
-                      {portalLoading ? (
-                        <Loader className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <>
-                          View Billing Portal
-                          <ExternalLink className="w-4 h-4" />
-                        </>
-                      )}
-                    </button>
+                {paymentHistory.length > 0 ? (
+                  <div className="space-y-3">
+                    {paymentHistory.slice(0, 10).map((payment) => (
+                      <div 
+                        key={payment.id}
+                        className="flex items-center justify-between p-4 bg-gray-50 rounded-xl"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 bg-green-100 rounded-lg">
+                            <Download className="w-4 h-4 text-green-600" />
+                          </div>
+                          <div>
+                            <p className="font-medium text-gray-900 text-sm truncate max-w-[200px]">
+                              {payment.filename || 'PDF Download'}
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              {formatDate(payment.createdAt)}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-bold text-gray-900">
+                            ${(payment.amount / 100).toFixed(2)}
+                          </p>
+                          <p className="text-xs text-green-600 font-medium">Paid</p>
+                        </div>
+                      </div>
+                    ))}
+                    {paymentHistory.length > 10 && (
+                      <p className="text-center text-sm text-gray-500 pt-2">
+                        Showing 10 of {paymentHistory.length} purchases
+                      </p>
+                    )}
                   </div>
                 ) : (
                   <div className="text-center py-8 text-gray-500">
                     <CreditCard className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                    <p>No billing history</p>
-                    <p className="text-sm">Subscribe to Pro to access billing features</p>
+                    <p>No purchase history</p>
+                    <p className="text-sm">Pay-per-download purchases will appear here</p>
                   </div>
                 )}
               </div>
             </div>
+
+            {/* Billing Portal Card (for subscribers) */}
+            {isSubscriber && (
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+                <div className="p-6 border-b border-gray-100">
+                  <div className="flex items-center gap-3">
+                    <div className="p-3 bg-blue-100 rounded-xl">
+                      <Settings className="w-6 h-6 text-blue-600" />
+                    </div>
+                    <div>
+                      <h2 className="text-lg font-bold text-gray-900">Billing Portal</h2>
+                      <p className="text-sm text-gray-500">Manage subscription and payment methods</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="p-6">
+                  <p className="text-gray-500 mb-4 text-sm">
+                    View invoices, update payment method, or cancel your subscription through the Stripe customer portal.
+                  </p>
+                  <button
+                    onClick={handleManageSubscription}
+                    disabled={portalLoading}
+                    className="w-full py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {portalLoading ? (
+                      <Loader className="w-5 h-5 animate-spin" />
+                    ) : (
+                      <>
+                        Open Billing Portal
+                        <ExternalLink className="w-4 h-4" />
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </main>

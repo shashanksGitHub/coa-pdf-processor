@@ -270,6 +270,10 @@ router.get('/account-status', verifyFirebaseToken, async (req, res) => {
         downloadsUsedThisMonth,
         currentPeriodEnd: userData.currentPeriodEnd || null,
         stripeCustomerId: userData.stripeCustomerId || null,
+        // Purchase history
+        totalPurchases: userData.totalPurchases ?? 0,
+        totalSpent: userData.totalSpent ?? 0, // In cents
+        lastPurchaseAt: userData.lastPurchaseAt || null,
       },
     });
   } catch (error) {

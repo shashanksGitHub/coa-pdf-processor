@@ -193,6 +193,38 @@ export async function getSubscriptionStatus() {
 // Alias for backwards compatibility
 export const createCustomerPortalSession = createPortalSession
 
+/**
+ * Get payment history
+ */
+export async function getPaymentHistory() {
+  try {
+    const token = await getAuthToken()
+    
+    if (!token) {
+      return []
+    }
+
+    const response = await fetch(`${API_BASE_URL}/api/payment/history`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(errorData.error || 'Failed to get payment history')
+    }
+
+    const data = await response.json()
+    return data.data || []
+  } catch (error) {
+    console.error('Error getting payment history:', error)
+    return []
+  }
+}
+
 export default {
   getAccountStatus,
   useDownloadCredit,
@@ -200,6 +232,7 @@ export default {
   createPortalSession,
   createCustomerPortalSession,
   getSubscriptionStatus,
+  getPaymentHistory,
 }
 
 
