@@ -11,7 +11,10 @@ export default function DownloadOptionsModal({
 }) {
   const [accountStatus, setAccountStatus] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [processing, setProcessing] = useState(false)
+  const [processingFree, setProcessingFree] = useState(false)
+  const [processingPaid, setProcessingPaid] = useState(false)
+  const [processingSubscription, setProcessingSubscription] = useState(false)
+  const [processingSubscribe, setProcessingSubscribe] = useState(false)
   const [error, setError] = useState('')
 
   useEffect(() => {
@@ -34,32 +37,36 @@ export default function DownloadOptionsModal({
     }
   }
 
+  const isAnyProcessing = processingFree || processingPaid || processingSubscription || processingSubscribe
+
   async function handleFreeDownload() {
-    setProcessing(true)
+    setProcessingFree(true)
+    setError('')
     try {
       await onDownload('free')
       onClose()
     } catch (err) {
       setError(err.message || 'Download failed')
     } finally {
-      setProcessing(false)
+      setProcessingFree(false)
     }
   }
 
   async function handlePaidDownload() {
-    setProcessing(true)
+    setProcessingPaid(true)
+    setError('')
     try {
       onPaymentRequired()
       onClose()
     } catch (err) {
       setError(err.message || 'Payment initialization failed')
     } finally {
-      setProcessing(false)
+      setProcessingPaid(false)
     }
   }
 
   async function handleSubscriptionDownload() {
-    setProcessing(true)
+    setProcessingSubscription(true)
     setError('')
     try {
       // Use one download credit
@@ -72,12 +79,12 @@ export default function DownloadOptionsModal({
     } catch (err) {
       setError(err.message || 'Failed to use subscription credit')
     } finally {
-      setProcessing(false)
+      setProcessingSubscription(false)
     }
   }
 
   async function handleSubscribe() {
-    setProcessing(true)
+    setProcessingSubscribe(true)
     setError('')
     try {
       const result = await createSubscriptionCheckout()
@@ -87,7 +94,7 @@ export default function DownloadOptionsModal({
     } catch (err) {
       setError(err.message || 'Failed to start subscription')
     } finally {
-      setProcessing(false)
+      setProcessingSubscribe(false)
     }
   }
 
@@ -114,7 +121,7 @@ export default function DownloadOptionsModal({
             </div>
             <button
               onClick={onClose}
-              disabled={processing}
+              disabled={isAnyProcessing}
               className="text-gray-400 hover:text-gray-600 transition-colors disabled:opacity-50"
             >
               <X className="w-6 h-6" />
@@ -155,11 +162,11 @@ export default function DownloadOptionsModal({
                 </p>
                 <button
                   onClick={handleFreeDownload}
-                  disabled={processing}
+                  disabled={isAnyProcessing}
                   className="w-full py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                 >
-                  {processing ? <Loader className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-                  Download Free
+                  {processingFree ? <Loader className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                  {processingFree ? 'Downloading...' : 'Download Free'}
                 </button>
               </div>
 
@@ -182,11 +189,11 @@ export default function DownloadOptionsModal({
                 </p>
                 <button
                   onClick={handlePaidDownload}
-                  disabled={processing}
+                  disabled={isAnyProcessing}
                   className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                 >
-                  {processing ? <Loader className="w-4 h-4 animate-spin" /> : <CreditCard className="w-4 h-4" />}
-                  Pay $1 & Download
+                  {processingPaid ? <Loader className="w-4 h-4 animate-spin" /> : <CreditCard className="w-4 h-4" />}
+                  {processingPaid ? 'Processing...' : 'Pay $1 & Download'}
                 </button>
               </div>
 
@@ -236,11 +243,11 @@ export default function DownloadOptionsModal({
                     {hasCredits ? (
                       <button
                         onClick={handleSubscriptionDownload}
-                        disabled={processing}
+                        disabled={isAnyProcessing}
                         className="w-full py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                       >
-                        {processing ? <Loader className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                        Use 1 Credit & Download
+                        {processingSubscription ? <Loader className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                        {processingSubscription ? 'Downloading...' : 'Use 1 Credit & Download'}
                       </button>
                     ) : (
                       <div className="text-center py-2 text-sm text-red-600 font-medium">
@@ -266,11 +273,11 @@ export default function DownloadOptionsModal({
                     </ul>
                     <button
                       onClick={handleSubscribe}
-                      disabled={processing}
+                      disabled={isAnyProcessing}
                       className="w-full py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                     >
-                      {processing ? <Loader className="w-4 h-4 animate-spin" /> : <Crown className="w-4 h-4" />}
-                      Subscribe Now
+                      {processingSubscribe ? <Loader className="w-4 h-4 animate-spin" /> : <Crown className="w-4 h-4" />}
+                      {processingSubscribe ? 'Redirecting to checkout...' : 'Subscribe Now'}
                     </button>
                   </>
                 )}

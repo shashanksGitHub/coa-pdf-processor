@@ -31,14 +31,36 @@ export default function Dashboard() {
     setTimeout(() => setToast(null), 5000)
   }
 
+  // Check for subscription success/cancel from URL (runs once on mount)
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search)
+    const subscriptionParam = urlParams.get('subscription')
+    
+    if (subscriptionParam === 'success') {
+      // Clear URL params first to prevent re-triggering
+      window.history.replaceState({}, '', window.location.pathname)
+      // Show success toast immediately
+      showToast('success', '🎉 Subscription successful! Activating your Pro account...')
+    } else if (subscriptionParam === 'canceled') {
+      window.history.replaceState({}, '', window.location.pathname)
+      showToast('error', 'Subscription was canceled.')
+    }
+  }, [])
+
   // Load account status
   useEffect(() => {
     async function loadAccountStatus() {
       if (currentUser) {
         try {
           const status = await getAccountStatus()
+          const wasSubscriber = isSubscriber
           setIsSubscriber(status.subscriptionStatus === 'active')
           setDownloadsRemaining(status.downloadsRemaining || 0)
+          
+          // If just became a subscriber, show welcome toast
+          if (!wasSubscriber && status.subscriptionStatus === 'active') {
+            showToast('success', '✅ Welcome to Pro! You now have 60 downloads per month.')
+          }
           return status
         } catch (error) {
           console.error('Error loading account status:', error)
@@ -46,31 +68,24 @@ export default function Dashboard() {
       }
       return null
     }
+    
     loadAccountStatus()
-
-    // Check for subscription success/cancel from URL
+    
+    // Poll for subscription activation if coming from checkout
     const urlParams = new URLSearchParams(window.location.search)
     if (urlParams.get('subscription') === 'success') {
-      // Show loading toast
-      showToast('success', '🎉 Subscription successful! Activating your Pro account...')
-      
-      // Refresh status after successful subscription (with retry)
-      const checkSubscription = async (attempts = 0) => {
+      // Poll every 2 seconds for up to 10 seconds
+      const interval = setInterval(async () => {
         const status = await loadAccountStatus()
         if (status?.subscriptionStatus === 'active') {
-          showToast('success', '✅ Welcome to Pro! You now have 60 downloads per month.')
-        } else if (attempts < 3) {
-          // Retry a few times as webhook might take a moment
-          setTimeout(() => checkSubscription(attempts + 1), 2000)
+          clearInterval(interval)
         }
-      }
-      setTimeout(() => checkSubscription(), 1500)
+      }, 2000)
       
-      // Clear URL params
-      window.history.replaceState({}, '', window.location.pathname)
-    } else if (urlParams.get('subscription') === 'canceled') {
-      showToast('error', 'Subscription was canceled.')
-      window.history.replaceState({}, '', window.location.pathname)
+      // Stop polling after 10 seconds
+      setTimeout(() => clearInterval(interval), 10000)
+      
+      return () => clearInterval(interval)
     }
   }, [currentUser])
 
