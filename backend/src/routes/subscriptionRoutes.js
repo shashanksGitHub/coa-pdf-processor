@@ -39,12 +39,30 @@ router.post('/create-checkout-session', verifyFirebaseToken, async (req, res) =>
       });
       stripeCustomerId = customer.id;
 
-      // Save customer ID to Firestore
+      // Save customer ID to Firestore (create or update)
       if (isFirestoreAvailable()) {
-        await firestore.collection(USERS_COLLECTION).doc(userId).update({
-          stripeCustomerId,
-          updatedAt: new Date().toISOString(),
-        });
+        const userDocRef = firestore.collection(USERS_COLLECTION).doc(userId);
+        const userDoc = await userDocRef.get();
+        
+        if (userDoc.exists) {
+          await userDocRef.update({
+            stripeCustomerId,
+            updatedAt: new Date().toISOString(),
+          });
+        } else {
+          // Create user document if it doesn't exist
+          await userDocRef.set({
+            uid: userId,
+            email: userEmail,
+            stripeCustomerId,
+            accountType: 'free',
+            subscriptionStatus: 'none',
+            downloadsRemaining: 0,
+            downloadsUsedThisMonth: 0,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          });
+        }
       }
     }
 
