@@ -344,7 +344,7 @@ async function handlePaymentFailed(invoice) {
 
 /**
  * GET /api/subscription/status
- * Get current subscription status
+ * Get current subscription status (syncs with Stripe if needed)
  */
 router.get('/status', verifyFirebaseToken, async (req, res) => {
   try {
@@ -359,7 +359,8 @@ router.get('/status', verifyFirebaseToken, async (req, res) => {
     }
 
     const userId = req.user.uid;
-    const userDoc = await firestore.collection(USERS_COLLECTION).doc(userId).get();
+    const userDocRef = firestore.collection(USERS_COLLECTION).doc(userId);
+    const userDoc = await userDocRef.get();
 
     if (!userDoc.exists) {
       return res.json({
@@ -372,6 +373,50 @@ router.get('/status', verifyFirebaseToken, async (req, res) => {
     }
 
     const userData = userDoc.data();
+    
+    // If user has a Stripe customer ID, check for active subscriptions directly with Stripe
+    if (userData.stripeCustomerId && userData.subscriptionStatus !== 'active') {
+      try {
+        const subscriptions = await stripe.subscriptions.list({
+          customer: userData.stripeCustomerId,
+          status: 'active',
+          limit: 1,
+        });
+
+        if (subscriptions.data.length > 0) {
+          const subscription = subscriptions.data[0];
+          const currentPeriodStart = new Date(subscription.current_period_start * 1000).toISOString();
+          const currentPeriodEnd = new Date(subscription.current_period_end * 1000).toISOString();
+
+          // Update Firestore with subscription info
+          await userDocRef.update({
+            accountType: 'subscriber',
+            subscriptionStatus: 'active',
+            stripeSubscriptionId: subscription.id,
+            currentPeriodStart,
+            currentPeriodEnd,
+            downloadsRemaining: DOWNLOADS_PER_MONTH,
+            downloadsUsedThisMonth: 0,
+            updatedAt: new Date().toISOString(),
+          });
+
+          console.log(`✅ Synced subscription for user: ${userId}`);
+
+          return res.json({
+            success: true,
+            data: {
+              isSubscribed: true,
+              status: 'active',
+              downloadsRemaining: DOWNLOADS_PER_MONTH,
+              downloadsUsedThisMonth: 0,
+              currentPeriodEnd,
+            },
+          });
+        }
+      } catch (stripeError) {
+        console.error('Error checking Stripe subscription:', stripeError);
+      }
+    }
 
     res.json({
       success: true,

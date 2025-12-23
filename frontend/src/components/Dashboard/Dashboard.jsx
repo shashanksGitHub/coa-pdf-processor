@@ -38,6 +38,17 @@ export default function Dashboard() {
       }
     }
     loadAccountStatus()
+
+    // Check for subscription success/cancel from URL
+    const urlParams = new URLSearchParams(window.location.search)
+    if (urlParams.get('subscription') === 'success') {
+      // Refresh status after successful subscription
+      setTimeout(() => {
+        loadAccountStatus()
+      }, 1000)
+      // Clear URL params
+      window.history.replaceState({}, '', window.location.pathname)
+    }
   }, [currentUser])
 
   async function handleLogout() {
