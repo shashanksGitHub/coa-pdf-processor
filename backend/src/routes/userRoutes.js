@@ -35,8 +35,17 @@ router.post('/create', verifyFirebaseToken, async (req, res) => {
       uid: userId,
       email: email || req.user?.email || '',
       displayName: displayName || '',
-      isPro: false, // New users start as free tier
-      accountType: 'free', // 'free' or 'pro'
+      // Subscription & Credits
+      accountType: 'free', // 'free', 'subscriber'
+      subscriptionStatus: 'none', // 'none', 'active', 'canceled', 'past_due'
+      stripeCustomerId: null,
+      stripeSubscriptionId: null,
+      // Download credits
+      downloadsRemaining: 0, // For subscribers: 60/month
+      downloadsUsedThisMonth: 0,
+      currentPeriodStart: null,
+      currentPeriodEnd: null,
+      // Timestamps
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -46,13 +55,13 @@ router.post('/create', verifyFirebaseToken, async (req, res) => {
     const existingDoc = await docRef.get();
     
     if (existingDoc.exists) {
-      // Update existing user (don't overwrite createdAt, isPro, accountType)
+      // Update existing user (preserve subscription data)
       const existingData = existingDoc.data();
       await docRef.update({
-        ...userData,
-        createdAt: existingData.createdAt, // Keep original createdAt
-        isPro: existingData.isPro ?? false, // Keep existing pro status
-        accountType: existingData.accountType ?? 'free', // Keep existing account type
+        email: email || req.user?.email || existingData.email,
+        displayName: displayName || existingData.displayName,
+        updatedAt: new Date().toISOString(),
+        // Preserve all subscription-related fields
       });
       console.log(`✅ User updated in Firestore: ${userId}`);
     } else {
@@ -208,7 +217,7 @@ router.post('/upgrade-to-pro', verifyFirebaseToken, async (req, res) => {
 
 /**
  * GET /api/users/account-status
- * Get current user's account status (free/pro)
+ * Get current user's account status and subscription info
  */
 router.get('/account-status', verifyFirebaseToken, async (req, res) => {
   try {
@@ -216,8 +225,10 @@ router.get('/account-status', verifyFirebaseToken, async (req, res) => {
       return res.json({
         success: true,
         data: {
-          isPro: false,
           accountType: 'free',
+          subscriptionStatus: 'none',
+          downloadsRemaining: 0,
+          downloadsUsedThisMonth: 0,
         },
         message: 'Firestore not configured - defaulting to free',
       });
@@ -231,23 +242,105 @@ router.get('/account-status', verifyFirebaseToken, async (req, res) => {
       return res.json({
         success: true,
         data: {
-          isPro: false,
           accountType: 'free',
+          subscriptionStatus: 'none',
+          downloadsRemaining: 0,
+          downloadsUsedThisMonth: 0,
         },
       });
     }
 
     const userData = doc.data();
+    
+    // Check if subscription period needs reset
+    let downloadsRemaining = userData.downloadsRemaining ?? 0;
+    let downloadsUsedThisMonth = userData.downloadsUsedThisMonth ?? 0;
+    
+    if (userData.currentPeriodEnd && new Date(userData.currentPeriodEnd) < new Date()) {
+      // Period has ended, might need reset (handled by webhook usually)
+      downloadsRemaining = 0;
+    }
+
     res.json({
       success: true,
       data: {
-        isPro: userData.isPro ?? false,
         accountType: userData.accountType ?? 'free',
-        upgradedAt: userData.upgradedAt || null,
+        subscriptionStatus: userData.subscriptionStatus ?? 'none',
+        downloadsRemaining,
+        downloadsUsedThisMonth,
+        currentPeriodEnd: userData.currentPeriodEnd || null,
+        stripeCustomerId: userData.stripeCustomerId || null,
       },
     });
   } catch (error) {
     console.error('Error getting account status:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
+
+/**
+ * POST /api/users/use-download-credit
+ * Use one download credit (for subscribers)
+ */
+router.post('/use-download-credit', verifyFirebaseToken, async (req, res) => {
+  try {
+    if (!isFirestoreAvailable()) {
+      return res.status(503).json({
+        success: false,
+        error: 'Firestore not available',
+      });
+    }
+
+    const userId = req.user.uid;
+    const docRef = firestore.collection(USERS_COLLECTION).doc(userId);
+    const doc = await docRef.get();
+
+    if (!doc.exists) {
+      return res.status(404).json({
+        success: false,
+        error: 'User not found',
+      });
+    }
+
+    const userData = doc.data();
+
+    // Check if user is an active subscriber
+    if (userData.subscriptionStatus !== 'active') {
+      return res.status(403).json({
+        success: false,
+        error: 'Active subscription required',
+      });
+    }
+
+    // Check if user has remaining downloads
+    if ((userData.downloadsRemaining ?? 0) <= 0) {
+      return res.status(403).json({
+        success: false,
+        error: 'No download credits remaining this month',
+      });
+    }
+
+    // Deduct one credit
+    await docRef.update({
+      downloadsRemaining: (userData.downloadsRemaining ?? 0) - 1,
+      downloadsUsedThisMonth: (userData.downloadsUsedThisMonth ?? 0) + 1,
+      updatedAt: new Date().toISOString(),
+    });
+
+    console.log(`✅ Download credit used by user: ${userId}`);
+
+    res.json({
+      success: true,
+      data: {
+        downloadsRemaining: (userData.downloadsRemaining ?? 0) - 1,
+        downloadsUsedThisMonth: (userData.downloadsUsedThisMonth ?? 0) + 1,
+      },
+    });
+  } catch (error) {
+    console.error('Error using download credit:', error);
     res.status(500).json({
       success: false,
       error: error.message,

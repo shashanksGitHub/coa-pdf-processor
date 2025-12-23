@@ -23,13 +23,15 @@ async function getAuthToken() {
  * @param {File} pdfFile - The PDF file to upload
  * @param {Object} companyInfo - Company information
  * @param {Object} editedData - Optional edited/modified extracted data
+ * @param {string} downloadType - 'free' (with watermark), 'paid', or 'subscription'
  * @returns {Promise<Object>} Response with extracted data and generated PDF
  */
-export async function extractAndGeneratePDF(pdfFile, companyInfo = {}, editedData = null) {
+export async function extractAndGeneratePDF(pdfFile, companyInfo = {}, editedData = null, downloadType = 'free') {
   try {
     const formData = new FormData()
     formData.append('pdfFile', pdfFile)
     formData.append('companyInfo', JSON.stringify(companyInfo))
+    formData.append('downloadType', downloadType)
     
     // If edited data is provided, use it instead of re-extracting
     if (editedData) {

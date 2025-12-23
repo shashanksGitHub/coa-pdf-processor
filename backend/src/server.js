@@ -3,6 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import pdfRoutes from './routes/pdfRoutes.js';
 import paymentRoutes from './routes/paymentRoutes.js';
+import subscriptionRoutes from './routes/subscriptionRoutes.js';
 import companyRoutes from './routes/companyRoutes.js';
 import userRoutes from './routes/userRoutes.js';
 import path from 'path';
@@ -66,6 +67,7 @@ async function initializeDirectories() {
 // Routes
 app.use('/api', pdfRoutes);
 app.use('/api/payment', paymentRoutes);
+app.use('/api/subscription', subscriptionRoutes);
 app.use('/api/company', companyRoutes);
 app.use('/api/users', userRoutes);
 

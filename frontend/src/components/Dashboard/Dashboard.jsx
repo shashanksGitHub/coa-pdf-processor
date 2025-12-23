@@ -1,10 +1,11 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
-import { LogOut, FileText } from 'lucide-react'
+import { LogOut, FileText, Crown } from 'lucide-react'
 import PDFUploader from './PDFUploader'
 import CompanyInfoForm from './CompanyInfoForm'
 import PDFPreview from './PDFPreview'
+import { getAccountStatus } from '../../services/userService'
 
 export default function Dashboard() {
   const { currentUser, logout } = useAuth()
@@ -16,9 +17,28 @@ export default function Dashboard() {
     logo: null,
     address: '',
     theme: null,
-    layout: 'classic'
+    layout: 'classic',
+    customBackground: null
   })
   const [step, setStep] = useState(1) // 1: Upload, 2: Company Info, 3: Preview
+  const [isSubscriber, setIsSubscriber] = useState(false)
+  const [downloadsRemaining, setDownloadsRemaining] = useState(0)
+
+  // Load account status
+  useEffect(() => {
+    async function loadAccountStatus() {
+      if (currentUser) {
+        try {
+          const status = await getAccountStatus()
+          setIsSubscriber(status.subscriptionStatus === 'active')
+          setDownloadsRemaining(status.downloadsRemaining || 0)
+        } catch (error) {
+          console.error('Error loading account status:', error)
+        }
+      }
+    }
+    loadAccountStatus()
+  }, [currentUser])
 
   async function handleLogout() {
     try {
@@ -43,7 +63,7 @@ export default function Dashboard() {
   function handleReset() {
     setUploadedPDF(null)
     setExtractedData(null)
-    setCompanyInfo({ name: '', logo: null, address: '', theme: null, layout: 'classic' })
+    setCompanyInfo({ name: '', logo: null, address: '', theme: null, layout: 'classic', customBackground: null })
     setStep(1)
   }
 
@@ -58,7 +78,16 @@ export default function Dashboard() {
                 <FileText className="w-6 h-6 text-primary-600" />
               </div>
               <div>
-                <h1 className="text-xl font-bold text-gray-900">COA PDF Processor</h1>
+                <div className="flex items-center gap-2">
+                  <h1 className="text-xl font-bold text-gray-900">COA PDF Processor</h1>
+                  {isSubscriber && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-gradient-to-r from-amber-400 to-amber-500 text-white">
+                      <Crown className="w-3 h-3" />
+                      PRO
+                      <span className="opacity-75">({downloadsRemaining})</span>
+                    </span>
+                  )}
+                </div>
                 <p className="text-sm text-gray-500">{currentUser?.email}</p>
               </div>
             </div>

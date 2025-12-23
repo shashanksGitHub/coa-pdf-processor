@@ -234,9 +234,9 @@ function generateFileName(extractedData, companyInfo) {
 function drawWatermark(doc, pageWidth, pageHeight) {
   doc.save();
   
-  // Semi-transparent gray watermark
-  doc.fillColor('#CCCCCC')
-    .opacity(0.15);
+  // Semi-transparent gray watermark (darker for better visibility)
+  doc.fillColor('#999999')
+    .opacity(0.25);
   
   // Draw diagonal watermark text multiple times
   const watermarkText = 'COA Processor - Free Version';

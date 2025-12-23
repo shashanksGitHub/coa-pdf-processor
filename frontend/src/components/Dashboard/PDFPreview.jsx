@@ -5,6 +5,7 @@ import {
   FileText, ChevronDown, ChevronUp, Trash2
 } from 'lucide-react'
 import PaymentModal from './PaymentModal'
+import DownloadOptionsModal from './DownloadOptionsModal'
 
 export default function PDFPreview({ extractedData: initialData, companyInfo, uploadedFile, onReset, onBack }) {
   // Editable data state
@@ -28,7 +29,9 @@ export default function PDFPreview({ extractedData: initialData, companyInfo, up
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState('')
   const [showPaymentModal, setShowPaymentModal] = useState(false)
+  const [showDownloadOptions, setShowDownloadOptions] = useState(false)
   const [generatedFilename, setGeneratedFilename] = useState('')
+  const [pendingDownloadType, setPendingDownloadType] = useState(null)
 
   // Initialize editable data from props
   useEffect(() => {
@@ -94,8 +97,13 @@ export default function PDFPreview({ extractedData: initialData, companyInfo, up
     return key.replace(/([A-Z])/g, ' $1').trim()
   }
 
-  // Handle download with edited data
-  async function handleDownloadClick() {
+  // Open download options modal
+  function handleDownloadClick() {
+    setShowDownloadOptions(true)
+  }
+
+  // Handle download with specific type
+  async function handleDownload(downloadType) {
     setError('')
     setGenerating(true)
     
@@ -108,11 +116,70 @@ export default function PDFPreview({ extractedData: initialData, companyInfo, up
         specifications: specifications
       }
       
-      // Create a modified file with our edited data
-      const response = await extractAndGeneratePDF(uploadedFile, companyInfo, finalData)
+      // Generate PDF with the specified download type
+      const response = await extractAndGeneratePDF(uploadedFile, companyInfo, finalData, downloadType)
+      
+      if (response.generatedPdf && response.generatedPdf.base64) {
+        const base64 = response.generatedPdf.base64
+        const filename = response.generatedPdf.filename || 'COA_formatted.pdf'
+        
+        const byteCharacters = atob(base64)
+        const byteNumbers = new Array(byteCharacters.length)
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i)
+        }
+        const byteArray = new Uint8Array(byteNumbers)
+        const blob = new Blob([byteArray], { type: 'application/pdf' })
+        
+        const url = window.URL.createObjectURL(blob)
+        const link = document.createElement('a')
+        link.href = url
+        link.download = filename
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+        window.URL.revokeObjectURL(url)
+        
+        setGeneratedFilename(filename)
+        setSuccess(true)
+        setTimeout(() => setSuccess(false), 3000)
+      } else {
+        throw new Error('No PDF data received from server')
+      }
+    } catch (err) {
+      console.error('Failed to generate PDF:', err)
+      setError(err.message || 'Failed to prepare PDF. Please try again.')
+      throw err
+    } finally {
+      setGenerating(false)
+    }
+  }
+
+  // Handle paid download - opens payment modal first
+  function handlePaymentRequired() {
+    // First generate the file to get filename, then show payment
+    handlePrepareForPayment()
+  }
+
+  // Prepare PDF and show payment modal
+  async function handlePrepareForPayment() {
+    setError('')
+    setGenerating(true)
+    
+    try {
+      const { extractAndGeneratePDF } = await import('../../services/apiService')
+      
+      const finalData = {
+        ...editableData,
+        specifications: specifications
+      }
+      
+      // Generate with 'paid' type to prepare the file
+      const response = await extractAndGeneratePDF(uploadedFile, companyInfo, finalData, 'paid')
       
       if (response.generatedPdf && response.generatedPdf.filename) {
         setGeneratedFilename(response.generatedPdf.filename)
+        setPendingDownloadType('paid')
         setShowPaymentModal(true)
       } else {
         throw new Error('No filename received from server')
@@ -129,98 +196,17 @@ export default function PDFPreview({ extractedData: initialData, companyInfo, up
     setGenerating(true)
     setSuccess(false)
     setError('')
+    setShowPaymentModal(false)
 
     try {
-      const { extractAndGeneratePDF } = await import('../../services/apiService')
-      
-      const finalData = {
-        ...editableData,
-        specifications: specifications
-      }
-      
-      const response = await extractAndGeneratePDF(uploadedFile, companyInfo, finalData)
-      
-      if (response.generatedPdf && response.generatedPdf.base64) {
-        const base64 = response.generatedPdf.base64
-        const filename = response.generatedPdf.filename || 'COA_formatted.pdf'
-        
-        const byteCharacters = atob(base64)
-        const byteNumbers = new Array(byteCharacters.length)
-        for (let i = 0; i < byteCharacters.length; i++) {
-          byteNumbers[i] = byteCharacters.charCodeAt(i)
-        }
-        const byteArray = new Uint8Array(byteNumbers)
-        const blob = new Blob([byteArray], { type: 'application/pdf' })
-        
-        const url = window.URL.createObjectURL(blob)
-        const link = document.createElement('a')
-        link.href = url
-        link.download = filename
-        document.body.appendChild(link)
-        link.click()
-        document.body.removeChild(link)
-        window.URL.revokeObjectURL(url)
-        
-        setSuccess(true)
-        setTimeout(() => setSuccess(false), 3000)
-      } else {
-        throw new Error('No PDF data received from server')
-      }
+      // Download with 'paid' type after successful payment
+      await handleDownload('paid')
     } catch (err) {
       console.error('Failed to generate PDF:', err)
       setError(err.message || 'Failed to generate PDF. Please try again.')
     } finally {
       setGenerating(false)
-    }
-  }
-
-  // Test download - bypasses payment (remove in production)
-  async function handleTestDownload() {
-    setGenerating(true)
-    setSuccess(false)
-    setError('')
-    
-    try {
-      const { extractAndGeneratePDF } = await import('../../services/apiService')
-      
-      const finalData = {
-        ...editableData,
-        specifications: specifications
-      }
-      
-      const response = await extractAndGeneratePDF(uploadedFile, companyInfo, finalData)
-      
-      if (response.generatedPdf && response.generatedPdf.base64) {
-        const base64 = response.generatedPdf.base64
-        const filename = response.generatedPdf.filename || 'COA_formatted.pdf'
-        
-        const byteCharacters = atob(base64)
-        const byteNumbers = new Array(byteCharacters.length)
-        for (let i = 0; i < byteCharacters.length; i++) {
-          byteNumbers[i] = byteCharacters.charCodeAt(i)
-        }
-        const byteArray = new Uint8Array(byteNumbers)
-        const blob = new Blob([byteArray], { type: 'application/pdf' })
-        
-        const url = window.URL.createObjectURL(blob)
-        const link = document.createElement('a')
-        link.href = url
-        link.download = filename
-        document.body.appendChild(link)
-        link.click()
-        document.body.removeChild(link)
-        window.URL.revokeObjectURL(url)
-        
-        setSuccess(true)
-        setTimeout(() => setSuccess(false), 3000)
-      } else {
-        throw new Error('No PDF data received from server')
-      }
-    } catch (err) {
-      console.error('Failed to generate PDF:', err)
-      setError(err.message || 'Failed to generate PDF. Please try again.')
-    } finally {
-      setGenerating(false)
+      setPendingDownloadType(null)
     }
   }
 
@@ -567,24 +553,6 @@ export default function PDFPreview({ extractedData: initialData, companyInfo, up
         <button onClick={onReset} className="btn-secondary flex-1">
           Start Over
         </button>
-        {/* Test Download Button - Remove in production */}
-        <button
-          onClick={handleTestDownload}
-          disabled={generating}
-          className="flex-1 flex items-center justify-center space-x-2 px-4 py-3 bg-gray-600 hover:bg-gray-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
-        >
-          {generating ? (
-            <>
-              <Loader className="w-5 h-5 animate-spin" />
-              <span>Generating...</span>
-            </>
-          ) : (
-            <>
-              <Download className="w-5 h-5" />
-              <span>Test Download</span>
-            </>
-          )}
-        </button>
         <button
           onClick={handleDownloadClick}
           disabled={generating}
@@ -597,12 +565,21 @@ export default function PDFPreview({ extractedData: initialData, companyInfo, up
             </>
           ) : (
             <>
-              <CreditCard className="w-5 h-5" />
-              <span>Pay $1 & Download</span>
+              <Download className="w-5 h-5" />
+              <span>Download PDF</span>
             </>
           )}
         </button>
       </div>
+
+      {/* Download Options Modal */}
+      <DownloadOptionsModal
+        isOpen={showDownloadOptions}
+        onClose={() => setShowDownloadOptions(false)}
+        onDownload={handleDownload}
+        onPaymentRequired={handlePaymentRequired}
+        filename={generatedFilename}
+      />
 
       {/* Payment Modal */}
       <PaymentModal

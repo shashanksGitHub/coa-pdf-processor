@@ -11,13 +11,18 @@ import path from 'path';
 const router = express.Router();
 
 /**
- * Get user info including Pro status
+ * Get user info including subscription status
  * @param {string} userId - The user's ID
- * @returns {Promise<Object>} User info with isPro status
+ * @returns {Promise<Object>} User info with subscription status
  */
 async function getUserInfo(userId) {
   if (!userId || !isFirestoreAvailable()) {
-    return { isPro: false, accountType: 'free' };
+    return { 
+      isPro: false, 
+      accountType: 'free',
+      subscriptionStatus: 'none',
+      downloadsRemaining: 0,
+    };
   }
   
   try {
@@ -25,15 +30,22 @@ async function getUserInfo(userId) {
     if (userDoc.exists) {
       const data = userDoc.data();
       return {
-        isPro: data.isPro ?? false,
+        isPro: data.subscriptionStatus === 'active',
         accountType: data.accountType ?? 'free',
+        subscriptionStatus: data.subscriptionStatus ?? 'none',
+        downloadsRemaining: data.downloadsRemaining ?? 0,
       };
     }
   } catch (error) {
     console.error('Error fetching user info:', error);
   }
   
-  return { isPro: false, accountType: 'free' };
+  return { 
+    isPro: false, 
+    accountType: 'free',
+    subscriptionStatus: 'none',
+    downloadsRemaining: 0,
+  };
 }
 
 /**
@@ -108,14 +120,40 @@ router.post('/extract-and-generate', optionalAuth, upload.single('pdfFile'), asy
       }
     }
 
-    // Get user info for Pro status check
+    // Get user info and download type
     const userId = req.user?.uid;
     const userInfo = await getUserInfo(userId);
-    console.log(`👤 User status: ${userInfo.isPro ? 'Pro' : 'Free'}`);
+    
+    // Check download type: 'free' (watermark), 'paid' ($1), 'subscription' (use credit)
+    let downloadType = req.body.downloadType || 'free';
+    
+    // Determine if watermark should be applied
+    let applyWatermark = true;
+    
+    if (downloadType === 'paid') {
+      // Paid download - no watermark
+      applyWatermark = false;
+      console.log('💳 Paid download - no watermark');
+    } else if (downloadType === 'subscription' && userInfo.subscriptionStatus === 'active') {
+      // Subscription download - no watermark
+      applyWatermark = false;
+      console.log('⭐ Subscription download - no watermark');
+    } else {
+      // Free download - with watermark
+      console.log('🆓 Free download - with watermark');
+    }
+
+    // Create userInfo object for PDF generator
+    const pdfUserInfo = {
+      ...userInfo,
+      isPro: !applyWatermark, // isPro controls watermark in PDF generator
+    };
+
+    console.log(`👤 User: ${userId || 'anonymous'}, Download type: ${downloadType}`);
 
     // Step 3: Generate formatted PDF
     console.log('📄 Generating formatted PDF...');
-    generatedPdfPath = await generateFormattedPDF(extractedData, companyInfo, userInfo);
+    generatedPdfPath = await generateFormattedPDF(extractedData, companyInfo, pdfUserInfo);
     console.log('✅ Formatted PDF generated');
 
     // Read the generated PDF as buffer for sending

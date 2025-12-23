@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
-import { Building2, Upload, Image as ImageIcon, ArrowLeft, Save, History, MapPin, Loader, Cloud, Check, Palette, Layout } from 'lucide-react'
+import { Building2, Upload, Image as ImageIcon, ArrowLeft, Save, History, MapPin, Loader, Cloud, Check, Palette, Layout, Crown, Sparkles, Lock } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
-import { uploadCompanyLogo, deleteCompanyLogo, fileToBase64 } from '../../services/storageService'
+import { uploadCompanyLogo, deleteCompanyLogo, uploadCustomBackground, deleteCustomBackground, fileToBase64 } from '../../services/storageService'
 import { getCompanyInfo, saveCompanyInfo as saveCompanyToFirestore, deleteCompanyInfo } from '../../services/companyService'
+import { getAccountStatus } from '../../services/userService'
 
 // Predefined color themes
 const COLOR_THEMES = [
@@ -40,6 +41,42 @@ export default function CompanyInfoForm({ onSubmit, onBack }) {
   // Theme and layout state
   const [selectedTheme, setSelectedTheme] = useState('navy-green')
   const [selectedLayout, setSelectedLayout] = useState('classic')
+  
+  // Subscription state
+  const [isSubscriber, setIsSubscriber] = useState(false)
+  const [downloadsRemaining, setDownloadsRemaining] = useState(0)
+  const [loadingAccountStatus, setLoadingAccountStatus] = useState(true)
+  
+  // Custom background state (Pro feature)
+  const [customBackground, setCustomBackground] = useState(null)
+  const [backgroundPreview, setBackgroundPreview] = useState(null)
+  const [backgroundUrl, setBackgroundUrl] = useState(null)
+  const [backgroundBase64, setBackgroundBase64] = useState(null)
+  const [uploadingBackground, setUploadingBackground] = useState(false)
+
+  // Load account status on mount
+  useEffect(() => {
+    async function loadAccountStatus() {
+      if (!currentUser) {
+        setLoadingAccountStatus(false)
+        return
+      }
+      
+      try {
+        const status = await getAccountStatus()
+        setIsSubscriber(status.subscriptionStatus === 'active')
+        setDownloadsRemaining(status.downloadsRemaining || 0)
+        console.log('Account status loaded:', status)
+      } catch (error) {
+        console.error('Error loading account status:', error)
+        setIsSubscriber(false)
+      } finally {
+        setLoadingAccountStatus(false)
+      }
+    }
+    
+    loadAccountStatus()
+  }, [currentUser])
 
   // Load saved company info from Firestore on mount
   useEffect(() => {
@@ -58,6 +95,11 @@ export default function CompanyInfoForm({ onSubmit, onBack }) {
           if (savedInfo.logoUrl) {
             setLogoUrl(savedInfo.logoUrl)
             setLogoPreview(savedInfo.logoUrl)
+          }
+          // Load custom background URL (Pro feature)
+          if (savedInfo.customBackgroundUrl) {
+            setBackgroundUrl(savedInfo.customBackgroundUrl)
+            setBackgroundPreview(savedInfo.customBackgroundUrl)
           }
           // Load theme and layout
           if (savedInfo.theme) setSelectedTheme(savedInfo.theme)
@@ -79,6 +121,10 @@ export default function CompanyInfoForm({ onSubmit, onBack }) {
               setLogoPreview(parsed.logoUrl)
               setLogoBase64(parsed.logoBase64 || null)
             }
+            if (parsed.backgroundUrl) {
+              setBackgroundUrl(parsed.backgroundUrl)
+              setBackgroundPreview(parsed.backgroundUrl)
+            }
             if (parsed.theme) setSelectedTheme(parsed.theme)
             if (parsed.layout) setSelectedLayout(parsed.layout)
             setHasSavedInfo(true)
@@ -95,7 +141,7 @@ export default function CompanyInfoForm({ onSubmit, onBack }) {
   }, [currentUser])
 
   // Save company info to Firestore
-  async function handleSaveCompanyInfo(logoDownloadUrl) {
+  async function handleSaveCompanyInfo(logoDownloadUrl, backgroundDownloadUrl) {
     if (!currentUser) {
       console.warn('Cannot save company info - user not logged in')
       return
@@ -109,6 +155,7 @@ export default function CompanyInfoForm({ onSubmit, onBack }) {
         logoUrl: logoDownloadUrl || logoUrl,
         theme: selectedTheme,
         layout: selectedLayout,
+        customBackgroundUrl: isSubscriber ? (backgroundDownloadUrl || backgroundUrl) : null,
       })
       setHasSavedInfo(true)
       setShowSavedMessage(true)
@@ -123,6 +170,8 @@ export default function CompanyInfoForm({ onSubmit, onBack }) {
         address: companyAddress,
         logoUrl: logoDownloadUrl || logoUrl,
         logoBase64: logoBase64,
+        backgroundUrl: isSubscriber ? (backgroundDownloadUrl || backgroundUrl) : null,
+        backgroundBase64: isSubscriber ? backgroundBase64 : null,
         theme: selectedTheme,
         layout: selectedLayout,
         savedAt: new Date().toISOString()
@@ -145,6 +194,11 @@ export default function CompanyInfoForm({ onSubmit, onBack }) {
         await deleteCompanyLogo(logoUrl)
       }
       
+      // Delete custom background from Firebase Storage
+      if (backgroundUrl) {
+        await deleteCustomBackground(backgroundUrl)
+      }
+      
       // Delete from Firestore
       if (currentUser) {
         await deleteCompanyInfo()
@@ -159,6 +213,10 @@ export default function CompanyInfoForm({ onSubmit, onBack }) {
       setLogoUrl(null)
       setLogoBase64(null)
       setLogo(null)
+      setBackgroundPreview(null)
+      setBackgroundUrl(null)
+      setBackgroundBase64(null)
+      setCustomBackground(null)
       setSelectedTheme('navy-green')
       setSelectedLayout('classic')
       setHasSavedInfo(false)
@@ -215,12 +273,59 @@ export default function CompanyInfoForm({ onSubmit, onBack }) {
     setLogoBase64(null)
   }
 
+  // Handle custom background upload (Pro feature)
+  async function handleBackgroundChange(e) {
+    const file = e.target.files[0]
+    if (!file) return
+
+    // Validate file size (max 10MB for backgrounds)
+    if (file.size > 10 * 1024 * 1024) {
+      setUploadError('Background file must be less than 10MB')
+      return
+    }
+
+    setUploadError('')
+    setUploadingBackground(true)
+    setCustomBackground(file)
+    
+    try {
+      // Create local preview immediately
+      const base64 = await fileToBase64(file)
+      setBackgroundPreview(base64)
+      setBackgroundBase64(base64)
+
+      // Upload to Firebase Storage
+      if (currentUser) {
+        const downloadUrl = await uploadCustomBackground(file, currentUser.uid)
+        setBackgroundUrl(downloadUrl)
+        console.log('Background uploaded to Firebase Storage:', downloadUrl)
+      }
+    } catch (error) {
+      console.error('Error handling background:', error)
+      setUploadError('Failed to upload background. Please try again.')
+    } finally {
+      setUploadingBackground(false)
+    }
+  }
+
+  async function handleRemoveBackground() {
+    // Delete from Firebase Storage
+    if (backgroundUrl) {
+      await deleteCustomBackground(backgroundUrl)
+    }
+    
+    setCustomBackground(null)
+    setBackgroundPreview(null)
+    setBackgroundUrl(null)
+    setBackgroundBase64(null)
+  }
+
   function handleSubmit(e) {
     e.preventDefault()
     
     // Save info if checkbox is checked
     if (saveInfo) {
-      handleSaveCompanyInfo(logoUrl)
+      handleSaveCompanyInfo(logoUrl, backgroundUrl)
     }
     
     // Get the selected theme colors
@@ -237,11 +342,13 @@ export default function CompanyInfoForm({ onSubmit, onBack }) {
         secondaryColor: theme.secondary,
       },
       layout: selectedLayout,
+      // Custom background for subscribers
+      customBackground: isSubscriber ? (backgroundBase64 || backgroundPreview) : null,
     })
   }
 
   // Show loading state while fetching company info
-  if (loadingInfo) {
+  if (loadingInfo || loadingAccountStatus) {
     return (
       <div className="card">
         <div className="flex flex-col items-center justify-center py-12">
@@ -486,6 +593,132 @@ export default function CompanyInfoForm({ onSubmit, onBack }) {
               ))}
             </div>
           </div>
+        </div>
+
+        {/* Subscriber Features Section */}
+        <div className="border-t border-gray-200 pt-6 mt-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <Crown className="w-5 h-5 text-amber-500" />
+              <h3 className="text-lg font-semibold text-gray-900">Subscriber Features</h3>
+            </div>
+            {isSubscriber ? (
+              <div className="flex items-center gap-2">
+                <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium bg-gradient-to-r from-amber-400 to-amber-500 text-white">
+                  <Sparkles className="w-3 h-3" />
+                  SUBSCRIBED
+                </span>
+                <span className="text-xs text-gray-500">{downloadsRemaining}/60 left</span>
+              </div>
+            ) : (
+              <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
+                <Lock className="w-3 h-3" />
+                Free Account
+              </span>
+            )}
+          </div>
+
+          {isSubscriber ? (
+            /* Custom Background Upload - Subscriber Feature */
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                <div className="flex items-center gap-2">
+                  <ImageIcon className="w-4 h-4" />
+                  Custom PDF Background
+                </div>
+              </label>
+              <p className="text-xs text-gray-500 mb-3">
+                Upload a custom background image for your PDFs (will appear faded behind content)
+              </p>
+              
+              {backgroundPreview ? (
+                <div className="space-y-3">
+                  <div className="relative flex items-center justify-center p-4 border-2 border-amber-200 rounded-xl bg-amber-50">
+                    <img
+                      src={backgroundPreview}
+                      alt="Background preview"
+                      className="max-h-24 max-w-full object-contain opacity-60"
+                    />
+                    {uploadingBackground && (
+                      <div className="absolute inset-0 bg-white bg-opacity-80 flex items-center justify-center rounded-xl">
+                        <div className="flex items-center gap-2 text-amber-600">
+                          <Loader className="w-5 h-5 animate-spin" />
+                          <span className="text-sm font-medium">Uploading...</span>
+                        </div>
+                      </div>
+                    )}
+                    {backgroundUrl && !uploadingBackground && (
+                      <div className="absolute top-2 right-2 flex items-center gap-1 bg-amber-100 text-amber-700 px-2 py-1 rounded-full text-xs">
+                        <Cloud className="w-3 h-3" />
+                        <span>Saved</span>
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleRemoveBackground}
+                    disabled={uploadingBackground}
+                    className="btn-secondary w-full disabled:opacity-50 text-sm"
+                  >
+                    Remove Background
+                  </button>
+                </div>
+              ) : (
+                <label className={`flex flex-col items-center justify-center p-6 border-2 border-dashed border-amber-300 rounded-xl cursor-pointer hover:border-amber-400 hover:bg-amber-50 transition-all ${uploadingBackground ? 'pointer-events-none opacity-50' : ''}`}>
+                  <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center mb-2">
+                    {uploadingBackground ? (
+                      <Loader className="w-5 h-5 text-amber-500 animate-spin" />
+                    ) : (
+                      <ImageIcon className="w-5 h-5 text-amber-500" />
+                    )}
+                  </div>
+                  <p className="text-sm font-medium text-gray-700 mb-1">
+                    {uploadingBackground ? 'Uploading...' : 'Upload Background Image'}
+                  </p>
+                  <p className="text-xs text-gray-500">PNG, JPG up to 10MB</p>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleBackgroundChange}
+                    className="hidden"
+                    disabled={uploadingBackground}
+                  />
+                </label>
+              )}
+            </div>
+          ) : (
+            /* Subscription prompt for free users */
+            <div className="p-4 bg-gradient-to-br from-amber-50 to-yellow-50 rounded-xl border border-amber-200">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center flex-shrink-0">
+                  <Crown className="w-5 h-5 text-amber-500" />
+                </div>
+                <div>
+                  <h4 className="font-medium text-gray-900 mb-1">Subscribe for $39/month</h4>
+                  <p className="text-sm text-gray-600 mb-3">
+                    Get 60 watermark-free downloads per month plus exclusive features.
+                  </p>
+                  <ul className="text-xs text-gray-500 space-y-1 mb-3">
+                    <li className="flex items-center gap-2">
+                      <Check className="w-3 h-3 text-green-500" />
+                      60 watermark-free downloads/month
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <Check className="w-3 h-3 text-green-500" />
+                      Custom background images
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <Check className="w-3 h-3 text-green-500" />
+                      Save $21 vs pay-per-download
+                    </li>
+                  </ul>
+                  <p className="text-xs text-gray-500">
+                    Subscribe when downloading your PDF
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Save for next time checkbox */}
