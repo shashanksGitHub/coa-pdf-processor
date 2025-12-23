@@ -189,10 +189,21 @@ router.post('/webhook', async (req, res) => {
         await handleCheckoutComplete(session);
         break;
       }
-      case 'customer.subscription.created':
       case 'customer.subscription.updated': {
+        // Only handle updates, not initial creation (which is often "incomplete")
         const subscription = event.data.object;
-        await handleSubscriptionUpdate(subscription);
+        if (subscription.status === 'active') {
+          await handleSubscriptionUpdate(subscription);
+        }
+        break;
+      }
+      case 'customer.subscription.created': {
+        // Subscription created - might be incomplete, wait for invoice.paid
+        const subscription = event.data.object;
+        console.log(`📋 Subscription created with status: ${subscription.status}`);
+        if (subscription.status === 'active') {
+          await handleSubscriptionUpdate(subscription);
+        }
         break;
       }
       case 'customer.subscription.deleted': {
@@ -208,6 +219,19 @@ router.post('/webhook', async (req, res) => {
       case 'invoice.payment_failed': {
         const invoice = event.data.object;
         await handlePaymentFailed(invoice);
+        break;
+      }
+      case 'invoice.created': {
+        // Invoice created - no action needed
+        console.log(`📄 Invoice created: ${event.data.object.id}`);
+        break;
+      }
+      case 'payment_intent.succeeded': {
+        console.log(`💳 Payment succeeded: ${event.data.object.id}`);
+        break;
+      }
+      case 'charge.succeeded': {
+        console.log(`💰 Charge succeeded: ${event.data.object.id}`);
         break;
       }
       default:
@@ -305,7 +329,7 @@ async function handleSubscriptionCanceled(subscription) {
 }
 
 /**
- * Handle invoice.paid event (subscription renewal)
+ * Handle invoice.paid event (subscription activation/renewal)
  */
 async function handleInvoicePaid(invoice) {
   const subscriptionId = invoice.subscription;
@@ -316,18 +340,38 @@ async function handleInvoicePaid(invoice) {
     const subscription = await stripe.subscriptions.retrieve(subscriptionId);
     const firebaseUid = subscription.metadata?.firebaseUid;
 
-    if (!firebaseUid || !isFirestoreAvailable()) return;
+    if (!firebaseUid || !isFirestoreAvailable()) {
+      console.warn('Cannot activate subscription - missing UID or Firestore');
+      return;
+    }
 
-    // Reset monthly downloads
-    await firestore.collection(USERS_COLLECTION).doc(firebaseUid).update({
+    // Safely convert timestamps
+    let currentPeriodStart = null;
+    let currentPeriodEnd = null;
+    
+    if (subscription.current_period_start) {
+      currentPeriodStart = new Date(subscription.current_period_start * 1000).toISOString();
+    }
+    if (subscription.current_period_end) {
+      currentPeriodEnd = new Date(subscription.current_period_end * 1000).toISOString();
+    }
+
+    // Activate subscription and reset/set downloads
+    const updateData = {
+      accountType: 'subscriber',
+      subscriptionStatus: 'active',
+      stripeSubscriptionId: subscription.id,
       downloadsRemaining: DOWNLOADS_PER_MONTH,
       downloadsUsedThisMonth: 0,
-      currentPeriodStart: new Date(subscription.current_period_start * 1000).toISOString(),
-      currentPeriodEnd: new Date(subscription.current_period_end * 1000).toISOString(),
       updatedAt: new Date().toISOString(),
-    });
+    };
 
-    console.log(`✅ Monthly downloads reset for user: ${firebaseUid}`);
+    if (currentPeriodStart) updateData.currentPeriodStart = currentPeriodStart;
+    if (currentPeriodEnd) updateData.currentPeriodEnd = currentPeriodEnd;
+
+    await firestore.collection(USERS_COLLECTION).doc(firebaseUid).update(updateData);
+
+    console.log(`✅ Subscription ACTIVATED for user: ${firebaseUid} (60 downloads granted)`);
   } catch (error) {
     console.error('Error handling invoice paid:', error);
   }
