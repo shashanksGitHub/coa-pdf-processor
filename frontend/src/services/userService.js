@@ -190,11 +190,15 @@ export async function getSubscriptionStatus() {
   }
 }
 
+// Alias for backwards compatibility
+export const createCustomerPortalSession = createPortalSession
+
 export default {
   getAccountStatus,
   useDownloadCredit,
   createSubscriptionCheckout,
   createPortalSession,
+  createCustomerPortalSession,
   getSubscriptionStatus,
 }
 
