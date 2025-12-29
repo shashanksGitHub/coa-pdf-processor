@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
-import { LogOut, FileText, Crown, CheckCircle, X, User } from 'lucide-react'
+import { LogOut, FileText, Crown, CheckCircle, X, User, MessageSquare } from 'lucide-react'
 import PDFUploader from './PDFUploader'
 import CompanyInfoForm from './CompanyInfoForm'
 import PDFPreview from './PDFPreview'
@@ -162,11 +162,18 @@ export default function Dashboard() {
             </div>
             <div className="flex items-center gap-3">
               <button
-                onClick={() => navigate('/profile')}
-                className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-                title="Profile"
+                onClick={() => navigate('/review')}
+                className="btn-secondary flex items-center space-x-2"
               >
-                <User className="w-5 h-5" />
+                <MessageSquare className="w-4 h-4" />
+                <span>Review</span>
+              </button>
+              <button
+                onClick={() => navigate('/profile')}
+                className="btn-secondary flex items-center space-x-2"
+              >
+                <User className="w-4 h-4" />
+                <span>Profile</span>
               </button>
               <button
                 onClick={handleLogout}
