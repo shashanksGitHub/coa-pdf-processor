@@ -19,19 +19,24 @@ export async function extractDataWithGPTVision(base64Images) {
     }));
 
     const systemPrompt = `You are an expert at extracting structured data from Certificate of Analysis (COA) documents. 
-Your task is to carefully read the COA and extract ALL relevant information into a structured JSON format.
+Your task is to carefully read ALL PAGES of the COA and extract ALL relevant information into a structured JSON format.
+
+IMPORTANT: This may be a MULTI-PAGE document. You MUST analyze ALL provided images/pages and combine the data from all pages into a single cohesive response.
 
 Pay special attention to:
-- Product name and identifiers
+- Product name and identifiers (usually on first page)
 - Batch/Lot numbers
 - Chemical information (CAS numbers, formulas)
-- Test specifications and results in tabular format
+- Test specifications and results in tabular format (may span multiple pages)
 - Dates and manufacturer information
 - Quality parameters
+- Continuation of tables from previous pages
 
 Return ONLY valid JSON without any markdown formatting or additional text.`;
 
-    const userPrompt = `Extract ALL data from this Certificate of Analysis (COA) document and return it as structured JSON with the following schema:
+    const userPrompt = `Extract ALL data from this Certificate of Analysis (COA) document. This may be a MULTI-PAGE document - analyze ALL ${base64Images.length} page(s) provided and combine all information.
+
+Return structured JSON with the following schema:
 
 {
   "productName": "Full product name",
@@ -60,9 +65,13 @@ Return ONLY valid JSON without any markdown formatting or additional text.`;
   }
 }
 
-Extract ALL visible specifications from the test results table. Do not skip any rows.
-If a field is not present in the document, use null.
-Ensure numbers and percentages are captured exactly as shown.`;
+CRITICAL INSTRUCTIONS:
+1. Extract ALL visible specifications from the test results table across ALL pages
+2. If a table continues on the next page, combine all rows into a single specifications array
+3. Do not skip any rows or pages
+4. If a field is not present in the document, use null
+5. Ensure numbers and percentages are captured exactly as shown
+6. If there are ${base64Images.length} pages, make sure you extract data from ALL of them`;
 
     const response = await openai.chat.completions.create({
       model: 'gpt-4o', // Latest GPT-4 with vision
