@@ -54,18 +54,23 @@ router.post('/', verifyFirebaseToken, async (req, res) => {
     }
 
     // Check for duplicate submission (same user within 1 minute)
+    // Simple query without orderBy to avoid needing composite index
     const recentReviews = await firestore
       .collection(REVIEWS_COLLECTION)
       .where('userId', '==', userId)
-      .orderBy('createdAt', 'desc')
-      .limit(1)
       .get();
 
     if (!recentReviews.empty) {
-      const lastReview = recentReviews.docs[0].data();
-      const lastReviewTime = new Date(lastReview.createdAt).getTime();
+      // Find the most recent review manually
+      let lastReviewTime = 0;
+      recentReviews.docs.forEach(doc => {
+        const reviewTime = new Date(doc.data().createdAt).getTime();
+        if (reviewTime > lastReviewTime) {
+          lastReviewTime = reviewTime;
+        }
+      });
+      
       const oneMinuteAgo = Date.now() - 60000;
-
       if (lastReviewTime > oneMinuteAgo) {
         return res.status(429).json({
           success: false,
@@ -123,13 +128,15 @@ router.get('/my-reviews', verifyFirebaseToken, async (req, res) => {
     const snapshot = await firestore
       .collection(REVIEWS_COLLECTION)
       .where('userId', '==', userId)
-      .orderBy('createdAt', 'desc')
       .get();
 
-    const reviews = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
+    // Sort manually to avoid needing composite index
+    const reviews = snapshot.docs
+      .map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+      }))
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
     res.json({
       success: true,
