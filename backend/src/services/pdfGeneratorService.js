@@ -529,7 +529,40 @@ export async function generateFormattedPDF(extractedData, companyInfo = {}, user
 }
 
 /**
+ * Draw table header
+ * @param {Object} doc - PDFKit document
+ * @param {number} yPosition - Starting Y position
+ * @param {Object} params - Table parameters
+ * @returns {number} New Y position after header
+ */
+function drawTableHeader(doc, yPosition, { margin, tableWidth, col1Width, col2Width, col3Width, headerHeight, headerBg, borderColor, layout }) {
+  doc.save();
+  
+  if (layout.tableHeaderStyle === 'filled') {
+    // Filled header with theme color
+    doc.rect(margin, yPosition, tableWidth, headerHeight)
+      .fillAndStroke(headerBg, headerBg);
+    doc.fillColor('#FFFFFF');
+  } else {
+    // Outline only (minimal)
+    doc.rect(margin, yPosition, tableWidth, headerHeight)
+      .stroke(borderColor);
+    doc.fillColor(borderColor);
+  }
+
+  doc.fontSize(11)
+    .font('Helvetica-Bold')
+    .text('Item', margin + 10, yPosition + 15, { width: col1Width - 20, align: 'center' })
+    .text('Standard', margin + col1Width + 10, yPosition + 15, { width: col2Width - 20, align: 'center' })
+    .text('Result', margin + col1Width + col2Width + 10, yPosition + 15, { width: col3Width - 20, align: 'center' });
+
+  doc.restore();
+  return yPosition + headerHeight;
+}
+
+/**
  * Draw professional bordered table with clean design
+ * Supports multi-page tables when specifications exceed one page
  * @param {Object} theme - Theme colors { primaryColor, secondaryColor }
  * @param {Object} layout - Layout configuration
  */
@@ -550,6 +583,9 @@ function drawProfessionalTable(doc, extractedData, pageWidth, pageHeight, margin
   const headerBg = theme.primaryColor;
   const borderWidth = layout.tableBorderWidth;
 
+  // Table header params for reuse across pages
+  const headerParams = { margin, tableWidth, col1Width, col2Width, col3Width, headerHeight, headerBg, borderColor, layout };
+
   // Helper function to clean special characters
   function cleanText(text) {
     if (!text) return '';
@@ -561,31 +597,13 @@ function drawProfessionalTable(doc, extractedData, pageWidth, pageHeight, margin
       .replace(/°/g, ' deg');
   }
 
+  // Maximum Y position before needing a new page (leave space for footer)
+  const maxYPosition = pageHeight - 60;
+
   // Determine if we have structured specifications
   if (extractedData.specifications && extractedData.specifications.length > 0) {
-    // Table header - style based on layout
-    doc.save();
-    
-    if (layout.tableHeaderStyle === 'filled') {
-      // Filled header with theme color
-      doc.rect(margin, yPosition, tableWidth, headerHeight)
-        .fillAndStroke(headerBg, headerBg);
-      doc.fillColor('#FFFFFF');
-    } else {
-      // Outline only (minimal)
-    doc.rect(margin, yPosition, tableWidth, headerHeight)
-        .stroke(borderColor);
-      doc.fillColor(borderColor);
-    }
-
-    doc.fontSize(11)
-      .font('Helvetica-Bold')
-      .text('Item', margin + 10, yPosition + 15, { width: col1Width - 20, align: 'center' })
-      .text('Standard', margin + col1Width + 10, yPosition + 15, { width: col2Width - 20, align: 'center' })
-      .text('Result', margin + col1Width + col2Width + 10, yPosition + 15, { width: col3Width - 20, align: 'center' });
-
-    doc.restore();
-    yPosition += headerHeight;
+    // Draw initial table header
+    yPosition = drawTableHeader(doc, yPosition, headerParams);
 
     // Table rows with clean borders
     doc.lineWidth(borderWidth)
@@ -593,14 +611,23 @@ function drawProfessionalTable(doc, extractedData, pageWidth, pageHeight, margin
       .fillColor('#000000')
       .font('Helvetica');
 
-    // Calculate max rows that fit - be very conservative
-    const maxYPosition = pageHeight - 60; // Minimal footer space
+    console.log(`📊 Drawing table with ${extractedData.specifications.length} specifications`);
     
     extractedData.specifications.forEach((spec, index) => {
-      // Hard stop if we're running out of space
+      // Check if we need a new page
       if (yPosition + rowHeight > maxYPosition) {
-        console.log(`⚠️  Skipping row ${index + 1} to prevent page 2`);
-        return;
+        console.log(`📄 Adding new page for row ${index + 1}`);
+        doc.addPage();
+        yPosition = margin;
+        
+        // Redraw table header on new page
+        yPosition = drawTableHeader(doc, yPosition, headerParams);
+        
+        // Reset drawing state for rows
+        doc.lineWidth(borderWidth)
+          .strokeColor(borderColor)
+          .fillColor('#000000')
+          .font('Helvetica');
       }
 
       // Draw cell borders (no fill, just outlines like reference)
@@ -642,6 +669,8 @@ function drawProfessionalTable(doc, extractedData, pageWidth, pageHeight, margin
 
       yPosition += rowHeight;
     });
+    
+    console.log(`✅ All ${extractedData.specifications.length} specifications rendered`);
   } else {
     // If no specifications, show ALL extracted data as a table
     const analysisData = [];
@@ -658,7 +687,7 @@ function drawProfessionalTable(doc, extractedData, pageWidth, pageHeight, margin
           .replace(/^./, str => str.toUpperCase())
           .trim();
         analysisData.push({ item: formattedKey, standard: '-', result: String(value) });
-    }
+      }
     });
 
     // Always show table even if minimal data
@@ -667,49 +696,46 @@ function drawProfessionalTable(doc, extractedData, pageWidth, pageHeight, margin
       analysisData.push({ item: 'Product Information', standard: '-', result: 'See above' });
     }
 
-    // Table header - style based on layout
-    doc.save();
-    
-    if (layout.tableHeaderStyle === 'filled') {
-      doc.rect(margin, yPosition, tableWidth, headerHeight)
-        .fillAndStroke(headerBg, headerBg);
-      doc.fillColor('#FFFFFF');
-    } else {
-      doc.rect(margin, yPosition, tableWidth, headerHeight)
-        .stroke(borderColor);
-      doc.fillColor(borderColor);
-    }
+    // Draw initial table header
+    yPosition = drawTableHeader(doc, yPosition, headerParams);
 
-      doc.fontSize(11)
-        .font('Helvetica-Bold')
-        .text('Item', margin + 10, yPosition + 15, { width: col1Width - 20, align: 'center' })
-        .text('Standard', margin + col1Width + 10, yPosition + 15, { width: col2Width - 20, align: 'center' })
-        .text('Result', margin + col1Width + col2Width + 10, yPosition + 15, { width: col3Width - 20, align: 'center' });
-
-      doc.restore();
-      yPosition += headerHeight;
-
-      // Table rows
-      doc.lineWidth(borderWidth)
+    // Table rows
+    doc.lineWidth(borderWidth)
       .strokeColor(borderColor)
-        .fillColor('#000000')
-        .font('Helvetica');
+      .fillColor('#000000')
+      .font('Helvetica');
 
-      analysisData.forEach((data) => {
-        doc.rect(margin, yPosition, col1Width, rowHeight).stroke();
-        doc.rect(margin + col1Width, yPosition, col2Width, rowHeight).stroke();
-        doc.rect(margin + col1Width + col2Width, yPosition, col3Width, rowHeight).stroke();
-
-        const textY = yPosition + (rowHeight / 2) - 5;
-
-        doc.fontSize(9)
+    analysisData.forEach((data, index) => {
+      // Check if we need a new page
+      if (yPosition + rowHeight > maxYPosition) {
+        console.log(`📄 Adding new page for analysis row ${index + 1}`);
+        doc.addPage();
+        yPosition = margin;
+        
+        // Redraw table header on new page
+        yPosition = drawTableHeader(doc, yPosition, headerParams);
+        
+        // Reset drawing state for rows
+        doc.lineWidth(borderWidth)
+          .strokeColor(borderColor)
           .fillColor('#000000')
-          .text(cleanText(data.item).toUpperCase(), margin + 10, textY, { width: col1Width - 20, align: 'left' })
-          .text(cleanText(data.standard), margin + col1Width + 10, textY, { width: col2Width - 20, align: 'center' })
-          .text(cleanText(data.result), margin + col1Width + col2Width + 10, textY, { width: col3Width - 20, align: 'center' });
+          .font('Helvetica');
+      }
 
-        yPosition += rowHeight;
-      });
+      doc.rect(margin, yPosition, col1Width, rowHeight).stroke();
+      doc.rect(margin + col1Width, yPosition, col2Width, rowHeight).stroke();
+      doc.rect(margin + col1Width + col2Width, yPosition, col3Width, rowHeight).stroke();
+
+      const textY = yPosition + (rowHeight / 2) - 5;
+
+      doc.fontSize(9)
+        .fillColor('#000000')
+        .text(cleanText(data.item).toUpperCase(), margin + 10, textY, { width: col1Width - 20, align: 'left' })
+        .text(cleanText(data.standard), margin + col1Width + 10, textY, { width: col2Width - 20, align: 'center' })
+        .text(cleanText(data.result), margin + col1Width + col2Width + 10, textY, { width: col3Width - 20, align: 'center' });
+
+      yPosition += rowHeight;
+    });
   }
 
   return yPosition;
