@@ -27,7 +27,9 @@ const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:5001',
   'https://coa-pdf-processor.web.app',
-  'https://coa-pdf-processor.firebaseapp.com'
+  'https://coa-pdf-processor.firebaseapp.com',
+  'https://coaprocessor.com',
+  'https://www.coaprocessor.com'
 ];
 
 app.use(cors({

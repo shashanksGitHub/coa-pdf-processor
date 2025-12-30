@@ -4,12 +4,12 @@ import { getStorage } from 'firebase/storage'
 import { getFirestore } from 'firebase/firestore'
 
 const firebaseConfig = {
-  apiKey: "AIzaSyC_RPyX9MzebcwKkVc5R7k7x3urCjyTpBU",
-  authDomain: "coa-pdf-processor.firebaseapp.com",
-  projectId: "coa-pdf-processor",
-  storageBucket: "coa-pdf-processor.firebasestorage.app",
-  messagingSenderId: "813892924411",
-  appId: "1:813892924411:web:318a2cfd51d6f4e390515e"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID
 }
 
 // Initialize Firebase
