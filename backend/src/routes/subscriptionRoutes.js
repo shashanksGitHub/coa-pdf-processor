@@ -86,6 +86,7 @@ router.post('/create-checkout-session', verifyFirebaseToken, async (req, res) =>
         },
       ],
       mode: 'subscription',
+      allow_promotion_codes: true, // Enable promo codes at checkout
       success_url: `${req.headers.origin || 'https://coa-pdf-processor.web.app'}?subscription=success`,
       cancel_url: `${req.headers.origin || 'https://coa-pdf-processor.web.app'}?subscription=canceled`,
       metadata: {
