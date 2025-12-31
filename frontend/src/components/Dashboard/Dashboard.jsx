@@ -92,7 +92,7 @@ export default function Dashboard() {
   async function handleLogout() {
     try {
       await logout()
-      navigate('/login')
+      navigate('/')
     } catch (error) {
       console.error('Failed to log out:', error)
     }
