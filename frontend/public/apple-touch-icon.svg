@@ -1,0 +1,28 @@
+<svg width="180" height="180" viewBox="0 0 180 180" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background circle with gradient -->
+  <circle cx="90" cy="90" r="90" fill="url(#gradient)"/>
+  
+  <!-- Document icon -->
+  <path d="M55 40C52.2386 40 50 42.2386 50 45V135C50 137.761 52.2386 140 55 140H125C127.761 140 130 137.761 130 135V68L100 40H55Z" fill="white" fill-opacity="0.95" stroke="white" stroke-width="2"/>
+  
+  <!-- Folded corner -->
+  <path d="M100 40V68H130L100 40Z" fill="white" fill-opacity="0.8"/>
+  
+  <!-- Lines representing text -->
+  <rect x="68" y="78" width="45" height="8" rx="4" fill="#2563EB"/>
+  <rect x="68" y="95" width="35" height="8" rx="4" fill="#2563EB"/>
+  <rect x="68" y="112" width="40" height="8" rx="4" fill="#2563EB"/>
+  
+  <!-- Small sparkle to indicate AI/processing -->
+  <circle cx="115" cy="50" r="4" fill="#FCD34D"/>
+  <path d="M115 42L115 58M107 50L123 50" stroke="#FCD34D" stroke-width="2" stroke-linecap="round"/>
+  
+  <!-- Gradient definition -->
+  <defs>
+    <linearGradient id="gradient" x1="0" y1="0" x2="180" y2="180" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#3B82F6"/>
+      <stop offset="1" stop-color="#2563EB"/>
+    </linearGradient>
+  </defs>
+</svg>
+
