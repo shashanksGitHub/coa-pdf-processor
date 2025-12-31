@@ -26,6 +26,7 @@ export default function Profile() {
   const [loading, setLoading] = useState(true)
   const [portalLoading, setPortalLoading] = useState(false)
   const [error, setError] = useState('')
+  const [displayCount, setDisplayCount] = useState(10) // Pagination state
 
   useEffect(() => {
     loadData()
@@ -311,37 +312,73 @@ export default function Profile() {
               </div>
               <div className="p-6">
                 {paymentHistory.length > 0 ? (
-                  <div className="space-y-3">
-                    {paymentHistory.slice(0, 10).map((payment) => (
-                      <div 
-                        key={payment.id}
-                        className="flex items-center justify-between p-4 bg-gray-50 rounded-xl"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="p-2 bg-green-100 rounded-lg">
-                            <Download className="w-4 h-4 text-green-600" />
+                  <div className="space-y-4">
+                    <div className="space-y-3">
+                      {paymentHistory.slice(0, displayCount).map((payment) => (
+                        <div 
+                          key={payment.id}
+                          className="flex items-center justify-between p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 bg-green-100 rounded-lg">
+                              <Download className="w-4 h-4 text-green-600" />
+                            </div>
+                            <div>
+                              <p className="font-medium text-gray-900 text-sm truncate max-w-[200px]">
+                                {payment.filename || 'PDF Download'}
+                              </p>
+                              <p className="text-xs text-gray-500">
+                                {formatDate(payment.createdAt)}
+                              </p>
+                            </div>
                           </div>
-                          <div>
-                            <p className="font-medium text-gray-900 text-sm truncate max-w-[200px]">
-                              {payment.filename || 'PDF Download'}
+                          <div className="text-right">
+                            <p className="font-bold text-gray-900">
+                              ${(payment.amount / 100).toFixed(2)}
                             </p>
-                            <p className="text-xs text-gray-500">
-                              {formatDate(payment.createdAt)}
-                            </p>
+                            <p className="text-xs text-green-600 font-medium">Paid</p>
                           </div>
                         </div>
-                        <div className="text-right">
-                          <p className="font-bold text-gray-900">
-                            ${(payment.amount / 100).toFixed(2)}
-                          </p>
-                          <p className="text-xs text-green-600 font-medium">Paid</p>
+                      ))}
+                    </div>
+                    
+                    {/* Pagination Controls */}
+                    {paymentHistory.length > displayCount && (
+                      <div className="flex flex-col items-center gap-3 pt-4 border-t border-gray-200">
+                        <p className="text-sm text-gray-500">
+                          Showing {displayCount} of {paymentHistory.length} purchases
+                        </p>
+                        <div className="flex gap-3">
+                          <button
+                            onClick={() => setDisplayCount(prev => Math.min(prev + 10, paymentHistory.length))}
+                            className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
+                          >
+                            <Download className="w-4 h-4" />
+                            Load More (10)
+                          </button>
+                          {displayCount < paymentHistory.length && (
+                            <button
+                              onClick={() => setDisplayCount(paymentHistory.length)}
+                              className="px-6 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg font-medium transition-colors"
+                            >
+                              Show All ({paymentHistory.length})
+                            </button>
+                          )}
                         </div>
                       </div>
-                    ))}
-                    {paymentHistory.length > 10 && (
-                      <p className="text-center text-sm text-gray-500 pt-2">
-                        Showing 10 of {paymentHistory.length} purchases
-                      </p>
+                    )}
+                    
+                    {/* Show "Collapse" button if showing more than initial 10 */}
+                    {displayCount > 10 && displayCount >= paymentHistory.length && (
+                      <div className="flex justify-center pt-2">
+                        <button
+                          onClick={() => setDisplayCount(10)}
+                          className="px-6 py-2 text-gray-600 hover:text-gray-900 font-medium transition-colors flex items-center gap-2"
+                        >
+                          Show Less
+                          <ArrowLeft className="w-4 h-4 rotate-90" />
+                        </button>
+                      </div>
                     )}
                   </div>
                 ) : (
