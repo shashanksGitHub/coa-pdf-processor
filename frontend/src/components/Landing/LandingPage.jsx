@@ -295,22 +295,14 @@ export default function LandingPage() {
       {/* Footer */}
       <footer className="bg-gray-900 text-white py-12 mt-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-col md:flex-row justify-between items-center">
-            <div className="flex items-center mb-4 md:mb-0">
+          <div className="flex flex-col items-center">
+            <div className="flex items-center mb-4">
               <FileText className="w-8 h-8 text-blue-400" />
               <span className="ml-2 text-xl font-bold">COA Processor</span>
             </div>
-            <div className="flex space-x-6">
-              <Link to="/login" className="text-gray-400 hover:text-white">
-                Sign In
-              </Link>
-              <Link to="/admin" className="text-gray-400 hover:text-white">
-                Admin
-              </Link>
+            <div className="text-center text-gray-400 text-sm">
+              <p>© 2025 COA Processor. All rights reserved.</p>
             </div>
-          </div>
-          <div className="mt-8 pt-8 border-t border-gray-800 text-center text-gray-400 text-sm">
-            <p>© 2025 COA Processor. All rights reserved.</p>
           </div>
         </div>
       </footer>
