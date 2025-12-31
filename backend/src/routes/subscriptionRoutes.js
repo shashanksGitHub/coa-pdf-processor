@@ -87,8 +87,8 @@ router.post('/create-checkout-session', verifyFirebaseToken, async (req, res) =>
       ],
       mode: 'subscription',
       allow_promotion_codes: true, // Enable promo codes at checkout
-      success_url: `${req.headers.origin || 'https://coa-pdf-processor.web.app'}?subscription=success`,
-      cancel_url: `${req.headers.origin || 'https://coa-pdf-processor.web.app'}?subscription=canceled`,
+      success_url: `${req.headers.origin || 'https://coa-pdf-processor.web.app'}/dashboard?subscription=success`,
+      cancel_url: `${req.headers.origin || 'https://coa-pdf-processor.web.app'}/dashboard?subscription=canceled`,
       metadata: {
         firebaseUid: userId,
       },
@@ -141,7 +141,7 @@ router.post('/create-portal-session', verifyFirebaseToken, async (req, res) => {
 
     const session = await stripe.billingPortal.sessions.create({
       customer: userDoc.data().stripeCustomerId,
-      return_url: `${req.headers.origin || 'https://coa-pdf-processor.web.app'}`,
+      return_url: `${req.headers.origin || 'https://coa-pdf-processor.web.app'}/dashboard`,
     });
 
     res.json({
