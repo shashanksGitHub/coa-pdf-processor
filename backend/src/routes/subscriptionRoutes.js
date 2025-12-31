@@ -5,8 +5,9 @@ import { verifyFirebaseToken } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
-// Subscription price: $39/month with 60 downloads
-const SUBSCRIPTION_PRICE_CENTS = 3900;
+// Subscription configuration
+const STRIPE_PRICE_ID = process.env.STRIPE_PRICE_ID; // Stripe Price ID for $39/month subscription
+const SUBSCRIPTION_PRICE_CENTS = 3900; // $39/month (for reference)
 const DOWNLOADS_PER_MONTH = 60;
 const USERS_COLLECTION = 'users';
 
@@ -66,23 +67,21 @@ router.post('/create-checkout-session', verifyFirebaseToken, async (req, res) =>
       }
     }
 
-    // Create checkout session
+    // Validate Price ID is configured
+    if (!STRIPE_PRICE_ID) {
+      return res.status(500).json({
+        success: false,
+        error: 'Subscription pricing not configured. Please contact support.',
+      });
+    }
+
+    // Create checkout session using Stripe Price ID
     const session = await stripe.checkout.sessions.create({
       customer: stripeCustomerId,
       payment_method_types: ['card'],
       line_items: [
         {
-          price_data: {
-            currency: 'usd',
-            product_data: {
-              name: 'COA Processor Pro',
-              description: '60 watermark-free downloads per month',
-            },
-            unit_amount: SUBSCRIPTION_PRICE_CENTS,
-            recurring: {
-              interval: 'month',
-            },
-          },
+          price: STRIPE_PRICE_ID, // Use pre-configured Stripe Price ID
           quantity: 1,
         },
       ],
