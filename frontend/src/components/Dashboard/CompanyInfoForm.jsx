@@ -619,16 +619,16 @@ export default function CompanyInfoForm({ onSubmit, onBack }) {
           </div>
 
           {isSubscriber ? (
-            /* Custom Background Upload - Subscriber Feature */
+            /* Custom Header Upload - Subscriber Feature */
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 <div className="flex items-center gap-2">
                   <ImageIcon className="w-4 h-4" />
-                  Custom PDF Background
+                  Upload Custom Header
                 </div>
               </label>
               <p className="text-xs text-gray-500 mb-3">
-                Upload a custom background image for your PDFs (will appear faded behind content)
+                Upload your own branded header image. When used, this replaces company name & address above.
               </p>
               
               {backgroundPreview ? (
@@ -636,8 +636,8 @@ export default function CompanyInfoForm({ onSubmit, onBack }) {
                   <div className="relative flex items-center justify-center p-4 border-2 border-amber-200 rounded-xl bg-amber-50">
                     <img
                       src={backgroundPreview}
-                      alt="Background preview"
-                      className="max-h-24 max-w-full object-contain opacity-60"
+                      alt="Header preview"
+                      className="max-h-24 max-w-full object-contain"
                     />
                     {uploadingBackground && (
                       <div className="absolute inset-0 bg-white bg-opacity-80 flex items-center justify-center rounded-xl">
@@ -654,13 +654,16 @@ export default function CompanyInfoForm({ onSubmit, onBack }) {
                       </div>
                     )}
                   </div>
+                  <p className="text-xs text-amber-700 bg-amber-50 p-2 rounded border border-amber-200">
+                    ⚠️ Custom header will replace company name & address in the PDF
+                  </p>
                   <button
                     type="button"
                     onClick={handleRemoveBackground}
                     disabled={uploadingBackground}
                     className="btn-secondary w-full disabled:opacity-50 text-sm"
                   >
-                    Remove Background
+                    Remove Header
                   </button>
                 </div>
               ) : (
@@ -673,9 +676,10 @@ export default function CompanyInfoForm({ onSubmit, onBack }) {
                     )}
                   </div>
                   <p className="text-sm font-medium text-gray-700 mb-1">
-                    {uploadingBackground ? 'Uploading...' : 'Upload Background Image'}
+                    {uploadingBackground ? 'Uploading...' : 'Upload Custom Header'}
                   </p>
                   <p className="text-xs text-gray-500">PNG, JPG up to 10MB</p>
+                  <p className="text-xs text-amber-600 mt-1">Replaces company name & address</p>
                   <input
                     type="file"
                     accept="image/*"
@@ -705,7 +709,7 @@ export default function CompanyInfoForm({ onSubmit, onBack }) {
                     </li>
                     <li className="flex items-center gap-2">
                       <Check className="w-3 h-3 text-green-500" />
-                      Custom background images
+                      Upload custom header images
                     </li>
                     <li className="flex items-center gap-2">
                       <Check className="w-3 h-3 text-green-500" />

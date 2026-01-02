@@ -1,4 +1,18 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001'
+import { auth } from '../config/firebase'
+
+// Use environment variable or fallback to production URL
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://urchin-app-uzvhp.ondigitalocean.app'
+
+/**
+ * Get the current user's auth token
+ */
+async function getAuthToken() {
+  const user = auth.currentUser
+  if (user) {
+    return await user.getIdToken()
+  }
+  return null
+}
 
 /**
  * Get Stripe publishable key
@@ -28,10 +42,17 @@ export async function getStripeConfig() {
  */
 export async function createPaymentIntent(filename, amount = 100) {
   try {
+    const token = await getAuthToken()
+    
+    if (!token) {
+      throw new Error('Authentication required')
+    }
+
     const response = await fetch(`${API_BASE_URL}/api/payment/create-payment-intent`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
       },
       body: JSON.stringify({
         filename,
@@ -59,10 +80,17 @@ export async function createPaymentIntent(filename, amount = 100) {
  */
 export async function verifyPayment(paymentIntentId) {
   try {
+    const token = await getAuthToken()
+    
+    if (!token) {
+      throw new Error('Authentication required')
+    }
+
     const response = await fetch(`${API_BASE_URL}/api/payment/verify-payment`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
       },
       body: JSON.stringify({
         paymentIntentId,

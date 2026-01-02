@@ -264,27 +264,50 @@ function drawWatermark(doc, pageWidth, pageHeight) {
 }
 
 /**
- * Draw custom background on PDF (for Pro users)
+ * Draw custom header on PDF (for Pro users)
+ * This replaces the company name and address section with a custom header image
  * @param {PDFDocument} doc - The PDFKit document
- * @param {Buffer} backgroundBuffer - The background image buffer
+ * @param {Buffer} headerBuffer - The custom header image buffer
  * @param {number} pageWidth - Page width
- * @param {number} pageHeight - Page height
+ * @param {number} margin - Page margin
+ * @param {number} startY - Starting Y position
+ * @returns {number} New Y position after header
  */
-function drawCustomBackground(doc, backgroundBuffer, pageWidth, pageHeight) {
+function drawCustomHeader(doc, headerBuffer, pageWidth, margin, startY) {
   try {
-    doc.save();
-    // Draw background image to cover the full page with low opacity
-    doc.opacity(0.1);
-    doc.image(backgroundBuffer, 0, 0, { 
-      width: pageWidth, 
-      height: pageHeight,
-      cover: [pageWidth, pageHeight]
+    // Get header dimensions
+    const dimensions = getImageDimensions(headerBuffer);
+    const maxWidth = pageWidth - (2 * margin);
+    const maxHeight = 120; // Maximum header height
+    
+    let headerWidth = maxWidth;
+    let headerHeight = 80; // Default height
+    
+    if (dimensions) {
+      const aspectRatio = dimensions.width / dimensions.height;
+      headerHeight = Math.min(maxWidth / aspectRatio, maxHeight);
+      headerWidth = headerHeight * aspectRatio;
+      
+      // If width exceeds max, scale down
+      if (headerWidth > maxWidth) {
+        headerWidth = maxWidth;
+        headerHeight = headerWidth / aspectRatio;
+      }
+    }
+    
+    // Center the header
+    const headerX = (pageWidth - headerWidth) / 2;
+    
+    doc.image(headerBuffer, headerX, startY, { 
+      width: headerWidth, 
+      height: headerHeight
     });
-    doc.restore();
-    doc.opacity(1);
-    console.log('✅ Custom background applied');
+    
+    console.log(`✅ Custom header applied: ${Math.round(headerWidth)}x${Math.round(headerHeight)}`);
+    return startY + headerHeight + 15; // Return new Y position with padding
   } catch (error) {
-    console.error('Error drawing custom background:', error);
+    console.error('Error drawing custom header:', error);
+    return startY + 20; // Fallback position
   }
 }
 
@@ -329,107 +352,120 @@ export async function generateFormattedPDF(extractedData, companyInfo = {}, user
       const margin = 50;
       let yPosition = margin;
 
-      // Apply custom background for Pro users, or watermark for free users
-      if (isPro && companyInfo.customBackground) {
-        try {
-          const backgroundBuffer = await getLogoBuffer(companyInfo.customBackground);
-          if (backgroundBuffer) {
-            drawCustomBackground(doc, backgroundBuffer, pageWidth, pageHeight);
-          }
-        } catch (error) {
-          console.error('Error applying custom background:', error);
-        }
-      } else if (!isPro) {
-        // Add watermark for free users
+      // Add watermark for free users (Pro users don't get watermark)
+      if (!isPro) {
         drawWatermark(doc, pageWidth, pageHeight);
       }
 
-      // Header style based on layout (isolated graphics state)
-      doc.save();
-      if (layout.headerStyle === 'banner') {
-        // Full-width banner (Classic)
-        doc.rect(0, 0, pageWidth, 40).fill(theme.secondaryColor);
-      yPosition = 60;
-      } else if (layout.headerStyle === 'minimal') {
-        // Thin accent line (Modern)
-        doc.rect(0, 0, pageWidth, 8).fill(theme.secondaryColor);
-        doc.rect(0, 8, pageWidth, 3).fill(theme.primaryColor);
-        yPosition = 30;
-      } else {
-        // No header (Minimal)
-        yPosition = 30;
-      }
-      doc.restore();
-
-      // Add company logo if provided (supports both base64 and URL)
-      const logoSource = companyInfo.logo || companyInfo.logoUrl;
-      if (logoSource) {
+      // Check if custom header is provided (Pro feature)
+      // Custom header REPLACES company name, address, logo, and header style
+      const hasCustomHeader = isPro && companyInfo.customBackground;
+      
+      if (hasCustomHeader) {
+        // Use custom header - this replaces ALL header elements
         try {
-          const logoBuffer = await getLogoBuffer(logoSource);
-          
-          if (logoBuffer) {
-            // Calculate dimensions preserving original aspect ratio
-            const logoDimensions = calculateLogoDimensions(logoBuffer, 150, 80);
-            
-            // Logo position based on layout
-            let logoX;
-            if (layout.logoPosition === 'left') {
-              logoX = margin;
-            } else {
-              logoX = (pageWidth - logoDimensions.width) / 2;
-            }
-            
-            doc.image(logoBuffer, logoX, yPosition, { 
-              width: logoDimensions.width, 
-              height: logoDimensions.height 
-            });
-            yPosition += logoDimensions.height + 10;
+          const headerBuffer = await getLogoBuffer(companyInfo.customBackground);
+          if (headerBuffer) {
+            yPosition = drawCustomHeader(doc, headerBuffer, pageWidth, margin, yPosition);
+            console.log('📋 Using custom header - skipping company name/address');
           } else {
-            console.warn('⚠️ Logo buffer is null, skipping logo');
-            yPosition += 20;
+            console.warn('⚠️ Custom header buffer is null, falling back to normal header');
+            yPosition = 60;
           }
         } catch (error) {
-          console.error('Error adding logo:', error);
-          yPosition += 20;
+          console.error('Error applying custom header:', error);
+          yPosition = 60;
         }
       } else {
-        yPosition += 20;
+        // Normal header flow - use layout style, logo, company name, address
+        
+        // Header style based on layout (isolated graphics state)
+        doc.save();
+        if (layout.headerStyle === 'banner') {
+          // Full-width banner (Classic)
+          doc.rect(0, 0, pageWidth, 40).fill(theme.secondaryColor);
+          yPosition = 60;
+        } else if (layout.headerStyle === 'minimal') {
+          // Thin accent line (Modern)
+          doc.rect(0, 0, pageWidth, 8).fill(theme.secondaryColor);
+          doc.rect(0, 8, pageWidth, 3).fill(theme.primaryColor);
+          yPosition = 30;
+        } else {
+          // No header (Minimal)
+          yPosition = 30;
+        }
+        doc.restore();
+
+        // Add company logo if provided (supports both base64 and URL)
+        const logoSource = companyInfo.logo || companyInfo.logoUrl;
+        if (logoSource) {
+          try {
+            const logoBuffer = await getLogoBuffer(logoSource);
+            
+            if (logoBuffer) {
+              // Calculate dimensions preserving original aspect ratio
+              const logoDimensions = calculateLogoDimensions(logoBuffer, 150, 80);
+              
+              // Logo position based on layout
+              let logoX;
+              if (layout.logoPosition === 'left') {
+                logoX = margin;
+              } else {
+                logoX = (pageWidth - logoDimensions.width) / 2;
+              }
+              
+              doc.image(logoBuffer, logoX, yPosition, { 
+                width: logoDimensions.width, 
+                height: logoDimensions.height 
+              });
+              yPosition += logoDimensions.height + 10;
+            } else {
+              console.warn('⚠️ Logo buffer is null, skipping logo');
+              yPosition += 20;
+            }
+          } catch (error) {
+            console.error('Error adding logo:', error);
+            yPosition += 20;
+          }
+        } else {
+          yPosition += 20;
+        }
+
+        // Company Name (if provided) - explicit color reset
+        if (companyInfo.name) {
+          doc.fillColor(theme.primaryColor)
+            .fontSize(14)
+            .font('Helvetica-Bold')
+            .text(companyInfo.name, margin, yPosition, {
+              align: layout.textAlign,
+              width: pageWidth - 2 * margin,
+            });
+          yPosition += 20;
+        }
+
+        // Company Address (if provided) - calculate actual height for multiline
+        if (companyInfo.address) {
+          doc.fillColor('#333333')
+            .fontSize(9)
+            .font('Helvetica');
+          
+          // Calculate the height of the address text
+          const addressHeight = doc.heightOfString(companyInfo.address, {
+            width: pageWidth - 2 * margin,
+          });
+          
+          doc.text(companyInfo.address, margin, yPosition, {
+              align: layout.textAlign,
+              width: pageWidth - 2 * margin,
+            });
+          
+          // Add actual text height plus some padding
+          yPosition += addressHeight + 10;
+        }
       }
 
-      // Text alignment based on layout
+      // Text alignment for content below header
       const textAlign = layout.textAlign;
-
-      // Company Name (if provided) - explicit color reset
-      if (companyInfo.name) {
-        doc.fillColor(theme.primaryColor)
-          .fontSize(14)
-          .font('Helvetica-Bold')
-          .text(companyInfo.name, margin, yPosition, {
-            align: textAlign,
-            width: pageWidth - 2 * margin,
-          });
-        yPosition += 20;
-      }
-
-      // Company Address (if provided) - calculate actual height for multiline
-      if (companyInfo.address) {
-        doc.fillColor('#333333')
-          .fontSize(9)
-          .font('Helvetica');
-        
-        // Calculate the height of the address text
-        const addressHeight = doc.heightOfString(companyInfo.address, {
-          width: pageWidth - 2 * margin,
-        });
-        
-        doc.text(companyInfo.address, margin, yPosition, {
-            align: textAlign,
-            width: pageWidth - 2 * margin,
-          });
-        
-        // Add actual text height plus some padding
-        yPosition += addressHeight + 10;
-      }
 
       // Add spacing before title
       yPosition += 10;
